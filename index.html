@@ -544,6 +544,13 @@
             const btStatusText = document.getElementById('btStatusText');
             const btIcon = document.getElementById('btModalIcon');
 
+            // [추가된 수정: 호환성 체크]
+            if (!navigator.bluetooth) {
+                btStatusText.innerText = "Web Bluetooth is not supported in this browser.";
+                btStatusText.classList.add('text-red-400');
+                return;
+            }
+
             try {
                 btBtn.disabled = true;
                 btBtn.innerText = "Searching...";
@@ -1258,14 +1265,22 @@
         };
 
         document.getElementById('clearHistoryBtn').onclick = () => { 
-            const sid = getCurrentSessionId();
+            const sid = getCurrentSessionId(); 
             const msg = `Clear all history for this session?`;
             const customConfirm = document.createElement('div');
             customConfirm.id = 'clearConfirmModal';
             customConfirm.innerHTML = `<div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"><div class="bg-white rounded-2xl p-6 w-full max-w-xs shadow-2xl"><p class="text-sm font-bold text-slate-700 mb-6 text-center">${msg}</p><div class="flex gap-2"><button id="cancelClear" class="flex-1 py-3 text-slate-400 font-bold text-sm">Cancel</button><button id="confirmClear" class="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-sm">Clear All</button></div></div></div>`;
             document.body.appendChild(customConfirm);
             document.getElementById('cancelClear').onclick = () => { document.body.removeChild(document.getElementById('clearConfirmModal')); };
-            document.getElementById('confirmClear').onclick = () => { solves = solves.filter(s => !(s.event === currentEvent && s.sessionId === id)); updateUI(); saveData(); document.body.removeChild(document.getElementById('clearConfirmModal')); timerEl.innerText = (0).toFixed(precision); resetPenalty(); };
+            
+            document.getElementById('confirmClear').onclick = () => { 
+                solves = solves.filter(s => !(s.event === currentEvent && s.sessionId === sid)); 
+                updateUI(); 
+                saveData(); 
+                document.body.removeChild(document.getElementById('clearConfirmModal')); 
+                timerEl.innerText = (0).toFixed(precision); 
+                resetPenalty(); 
+            };
         };
 
         loadData(); 
