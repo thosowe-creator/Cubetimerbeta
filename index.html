@@ -196,7 +196,7 @@
                 <!-- 에러 메시지 영역 -->
                 <p id="btErrorDetail" class="text-[11px] text-red-500 mt-2 font-bold bg-red-50 p-2 rounded-lg hidden break-words"></p>
                 <!-- 서비스 탐색 로그 영역 (디버깅용) -->
-                <div id="btDebugLog" class="text-[9px] text-slate-400 mt-2 font-mono text-left bg-slate-50 p-2 rounded-lg hidden h-20 overflow-y-auto"></div>
+                <div id="btDebugLog" class="text-[9px] text-slate-400 mt-2 font-mono text-left bg-slate-50 p-2 rounded-lg hidden h-32 overflow-y-auto border border-slate-200"></div>
             </div>
             
             <div id="btInfoPanel" class="hidden bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100">
@@ -655,7 +655,7 @@
                     log(`Found Read Char: ${readChar.uuid}`);
                     btCharacteristic = readChar;
                     
-                    log("Starting Polling (100ms)...");
+                    log("Starting Polling (50ms)...");
                     if (btPollInterval) clearInterval(btPollInterval);
                     btPollInterval = setInterval(async () => {
                         if (btDevice && btDevice.gatt.connected) {
@@ -667,10 +667,10 @@
                                 // 읽기 에러는 무시 (일시적일 수 있음)
                             }
                         }
-                    }, 100);
+                    }, 50); // Polling 간격을 더 짧게 조정 (반응성 향상)
                 }
 
-                log("Success!");
+                log("Success! Ready.");
                 
                 isBtConnected = true;
                 document.getElementById('btStatusIcon').classList.replace('disconnected', 'connected');
@@ -680,7 +680,9 @@
                 btBtn.classList.add('hidden');
                 btStatusText.innerText = "Timer Connected & Ready";
                 btIcon.classList.remove('bt-pulse');
-                btDebugLog.classList.add('hidden'); 
+                
+                // [수정] 성공 후에도 로그창 유지 (데이터 확인용)
+                // btDebugLog.classList.add('hidden'); 
                 
                 statusHint.innerText = "Timer Ready (BT)";
                 btDevice.addEventListener('gattserverdisconnected', onBTDisconnected);
@@ -699,8 +701,24 @@
         }
 
         function handleGanBTData(event) {
-            const data = event.target.value;
-            const state = data.getUint8(0);
+            const dataView = event.target.value;
+            
+            // [진단용 코드 추가] 수신된 데이터를 16진수로 변환하여 로그에 출력
+            const hex = Array.from(new Uint8Array(dataView.buffer))
+                .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+                .join(' ');
+
+            const logEl = document.getElementById('btDebugLog');
+            if(logEl) {
+                // 값이 변할 때만 로그 찍기 (너무 빠르면 도배되므로)
+                if (logEl.lastVal !== hex) {
+                    logEl.innerHTML = `<span class="text-blue-500 font-bold">${new Date().toLocaleTimeString()}</span>: ${hex}<br>` + logEl.innerHTML.slice(0, 2000);
+                    logEl.lastVal = hex;
+                }
+            }
+
+            // 기존 로직 수행
+            const state = dataView.getUint8(0);
             
             if (state !== lastBtState) {
                 if (state === 2) { 
@@ -719,7 +737,7 @@
                     }
                 } else if (state === 4) { 
                     if (isRunning) {
-                        const finalMs = data.getUint32(4, true); 
+                        const finalMs = dataView.getUint32(4, true); 
                         stopTimer(finalMs);
                     }
                 } else if (state === 1) { 
