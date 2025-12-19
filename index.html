@@ -43,7 +43,13 @@
             background-color: #ffffff;
             border-radius: 1.5rem;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-            max-height: calc(100vh - 100px);
+            max-height: none;
+        }
+
+        @media (min-width: 768px) {
+            .history-panel {
+                max-height: calc(100vh - 100px);
+            }
         }
 
         .category-btn, .event-tab {
@@ -85,14 +91,13 @@
         .penalty-btn.active-dnf { @apply bg-red-100 border-red-200 text-red-600; }
         .penalty-btn.inactive { @apply bg-white border-slate-200 text-slate-400 hover:bg-slate-50; }
         
-        /* 터치 반응성 개선 */
         #timerInteractiveArea {
             touch-action: none;
             -webkit-tap-highlight-color: transparent;
         }
     </style>
 </head>
-<body class="min-h-screen flex flex-col bg-slate-50 overflow-hidden">
+<body class="min-h-screen flex flex-col bg-slate-50 overflow-x-hidden">
 
     <header class="w-full h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between z-40 shrink-0">
         <div class="flex items-center gap-2">
@@ -153,8 +158,11 @@
         </div>
     </div>
 
-    <main class="flex flex-col md:flex-row p-4 gap-4 flex-grow overflow-hidden">
-        <div class="flex-grow flex flex-col items-center justify-between p-2 md:p-4 h-full order-2 md:order-1 overflow-y-auto custom-scroll">
+    <!-- Main Layout Adjustment for Responsive Order -->
+    <main class="flex flex-col md:flex-row p-4 gap-4 flex-grow overflow-y-auto md:overflow-hidden">
+        
+        <!-- Timer Section (Mobile: Order 1, Desktop: Order 1) -->
+        <div class="flex-grow flex flex-col items-center justify-between p-2 md:p-4 h-full order-1 overflow-y-auto custom-scroll">
             <div class="w-full max-w-4xl space-y-4">
                 <div class="flex flex-col items-center gap-4">
                     <div class="flex gap-1 p-1 bg-slate-200/50 rounded-full border border-slate-200">
@@ -218,12 +226,13 @@
             </div>
         </div>
 
-        <div class="w-full md:w-80 history-panel flex flex-col order-1 md:order-2 overflow-hidden self-start">
+        <!-- Sidebar Section (Mobile: Order 2, Desktop: Order 2) -->
+        <div class="w-full md:w-80 history-panel flex flex-col order-2 overflow-hidden self-start">
             <div class="p-4 border-b border-slate-50 flex justify-between items-center bg-white shrink-0">
                 <div class="flex items-center gap-2"><h3 class="font-bold text-slate-600 text-sm">Solves</h3><span id="solveCount" class="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">0</span></div>
                 <button id="clearHistoryBtn" class="text-[10px] font-bold text-slate-300 hover:text-red-400 transition-colors uppercase">Clear</button>
             </div>
-            <div id="historyList" class="flex-grow overflow-y-auto p-3 space-y-1.5 custom-scroll border-b border-slate-50 min-h-[200px]"></div>
+            <div id="historyList" class="flex-grow overflow-y-auto p-3 space-y-1.5 custom-scroll border-b border-slate-50 min-h-[300px] md:min-h-[200px]"></div>
             <div class="bg-slate-50/30 overflow-hidden shrink-0">
                 <div class="p-4 bg-white border-b border-slate-100 space-y-1.5">
                     <div class="flex justify-between items-center"><span class="text-[10px] font-bold text-slate-400 uppercase">Session Avg</span><span id="sessionAvg" class="text-xs font-bold text-slate-600">-</span></div>
@@ -516,7 +525,6 @@
             else { timerEl.classList.remove('holding-status','ready-to-start'); isReady=false; statusHint.innerText="HOLD TO READY"; }
         }
 
-        // 키보드 이벤트 (스페이스바)
         window.addEventListener('keydown', e => {
             if(e.code==='Space' && !e.repeat) { e.preventDefault(); handleStart(); }
             if(isManualMode && e.code==='Enter') {
@@ -526,12 +534,9 @@
         });
         window.addEventListener('keyup', e => { if(e.code==='Space') handleEnd(); });
 
-        // 터치 이벤트
         const interactiveArea = document.getElementById('timerInteractiveArea');
         interactiveArea.addEventListener('touchstart', handleStart, { passive: false });
         interactiveArea.addEventListener('touchend', handleEnd, { passive: false });
-
-        // 마우스 클릭(클릭 시작) 기능 제거: 오직 터치와 스페이스바만 허용
 
         window.openSettings = () => { 
             document.getElementById('settingsOverlay').classList.add('active'); 
