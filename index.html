@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cube Timer (WCA Compliant)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            transition: background-color 0.3s ease;
+        }
+        .timer-display {
+            font-family: 'JetBrains+Mono', monospace;
+            font-size: clamp(3rem, 18vw, 8rem);
+            font-variant-numeric: tabular-nums;
+            font-weight: 700;
+            letter-spacing: -0.05em;
+        }
+        .manual-input {
+            font-family: 'JetBrains+Mono', monospace;
+            font-size: clamp(2rem, 10vw, 5rem);
+            background: transparent;
+            border: none;
+            outline: none;
+            text-align: center;
+            width: 100%;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+        .scramble-box {
+            background-color: #ffffff;
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            letter-spacing: 0.05em;
+            line-height: 1.6;
+        }
+        .history-panel {
+            background-color: #ffffff;
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            max-height: calc(100vh - 100px);
+        }
+
+        .category-btn, .event-tab {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            white-space: nowrap;
+        }
+        
+        .category-btn {
+            color: #94a3b8;
+        }
+        .category-btn.active {
+            background-color: #3b82f6;
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+
+        .event-tab.active {
+            background-color: #3b82f6;
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+
+        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e2e8f0; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #3b82f6; }
+        input:checked + .slider:before { transform: translateX(20px); }
+        .ready-to-start { color: #10b981 !important; transform: scale(1.02); }
+        .holding-status { color: #ef4444 !important; }
+        .avg-badge { @apply px-4 py-3 rounded-2xl bg-white border border-slate-50 shadow-sm flex flex-col items-center min-w-[110px] transition-all; }
+        .modal-overlay { background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); display: none; position: fixed; inset: 0; z-index: 50; align-items: center; justify-content: center; padding: 1rem; }
+        .modal-overlay.active { display: flex; }
+        .penalty-btn { @apply flex-1 py-3 text-xs font-bold rounded-xl transition-all active:scale-95 border; }
+        .penalty-btn.active-plus2 { @apply bg-orange-100 border-orange-200 text-orange-600; }
+        .penalty-btn.active-dnf { @apply bg-red-100 border-red-200 text-red-600; }
+        .penalty-btn.inactive { @apply bg-white border-slate-200 text-slate-400 hover:bg-slate-50; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-50 overflow-hidden">
+
+    <header class="w-full h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between z-40 shrink-0">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
+            </div>
+            <h1 class="font-bold text-slate-700 tracking-tight">CubeTimer</h1>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="openSettings()" class="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Modal settings structure -->
+    <div id="settingsOverlay" class="modal-overlay" onclick="handleOutsideSettingsClick(event)">
+        <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 transform transition-all scale-95 opacity-0 duration-200" id="settingsModal" onclick="event.stopPropagation()">
+            <h3 class="font-bold text-slate-700 text-lg mb-6">Settings</h3>
+            <div class="space-y-4">
+                <!-- Average Type Toggle -->
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-2xl">
+                    <div><p class="text-xs font-bold text-slate-600">Average Mode</p></div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[9px] font-bold text-slate-400">Mo3</span>
+                        <label class="switch">
+                            <input type="checkbox" id="avgModeToggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                        <span class="text-[9px] font-bold text-slate-400">Ao5</span>
+                    </div>
+                </div>
+
+                <!-- Manual Entry Toggle -->
+                <div class="flex items-center justify-between p-3 bg-blue-50/50 rounded-2xl border border-blue-100">
+                    <div><p class="text-xs font-bold text-blue-600">Manual Entry</p></div>
+                    <label class="switch"><input type="checkbox" id="manualEntryToggle"><span class="slider"></span></label>
+                </div>
+
+                <!-- Precision Toggle -->
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-2xl">
+                    <div><p class="text-xs font-bold text-slate-600">Precision</p></div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[9px] font-bold text-slate-400">.00</span>
+                        <label class="switch"><input type="checkbox" id="precisionToggle"><span class="slider"></span></label>
+                        <span class="text-[9px] font-bold text-slate-400">.000</span>
+                    </div>
+                </div>
+            </div>
+            <button onclick="closeSettings()" class="w-full mt-8 py-3 bg-slate-800 text-white font-bold rounded-xl shadow-lg text-sm">Save & Close</button>
+        </div>
+    </div>
+
+    <!-- Solve Details Modal -->
+    <div id="modalOverlay" class="modal-overlay" onclick="closeModal(event)">
+        <div class="bg-white rounded-3xl w-full max-w-md shadow-2xl p-6" onclick="event.stopPropagation()">
+            <h4 class="font-bold text-slate-400 uppercase text-[10px] tracking-widest mb-4">Solve Details</h4>
+            <div id="modalTime" class="text-3xl font-bold text-slate-800 mb-1">0.00</div>
+            <div id="modalEvent" class="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded w-fit mb-4">3x3x3</div>
+            <div class="space-y-1.5">
+                <span class="text-[9px] font-bold text-slate-400 uppercase">Scramble</span>
+                <div id="modalScramble" class="bg-slate-50 p-3 rounded-xl text-slate-600 font-bold text-xs leading-relaxed border border-slate-100 italic whitespace-pre-line">-</div>
+            </div>
+            <button onclick="useThisScramble()" class="w-full mt-6 py-3.5 bg-slate-800 text-white font-bold rounded-xl text-sm">Use this Scramble</button>
+        </div>
+    </div>
+
+    <main class="flex flex-col md:flex-row p-4 gap-4 flex-grow overflow-hidden">
+        <div class="flex-grow flex flex-col items-center justify-between p-2 md:p-4 h-full order-2 md:order-1 overflow-y-auto custom-scroll">
+            <div class="w-full max-w-4xl space-y-4">
+                
+                <div class="flex flex-col items-center gap-4">
+                    <div class="flex gap-1 p-1 bg-slate-200/50 rounded-full border border-slate-200">
+                        <button onclick="switchCategory('standard')" id="cat-standard" class="category-btn active px-5 py-2 text-xs font-bold rounded-full">Standard</button>
+                        <button onclick="switchCategory('nonstandard')" id="cat-nonstandard" class="category-btn px-5 py-2 text-xs font-bold rounded-full">Non-Standard</button>
+                        <button onclick="switchCategory('pbq')" id="cat-pbq" class="category-btn px-5 py-2 text-xs font-bold rounded-full">PBQ</button>
+                    </div>
+
+                    <div class="bg-white p-1 rounded-2xl shadow-sm border border-slate-100 flex overflow-x-auto max-w-full custom-scroll">
+                        <div id="group-standard" class="flex gap-1">
+                            <button onclick="changeEvent('333')" class="event-tab active px-4 py-2 rounded-xl text-xs font-bold" id="tab-333">3x3</button>
+                            <button onclick="changeEvent('222')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-222">2x2</button>
+                            <button onclick="changeEvent('444')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-444">4x4</button>
+                            <button onclick="changeEvent('555')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-555">5x5</button>
+                            <button onclick="changeEvent('666')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-666">6x6</button>
+                            <button onclick="changeEvent('777')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-777">7x7</button>
+                            <button onclick="changeEvent('333oh')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-333oh">3x3OH</button>
+                        </div>
+                        <div id="group-nonstandard" class="hidden flex gap-1">
+                            <button onclick="changeEvent('clock')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-clock">Clock</button>
+                            <button onclick="changeEvent('minx')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-minx">Megaminx</button>
+                            <button onclick="changeEvent('pyra')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-pyra">Pyraminx</button>
+                            <button onclick="changeEvent('skewb')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-skewb">Skewb</button>
+                            <button onclick="changeEvent('sq1')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-sq1">Square-1</button>
+                        </div>
+                        <div id="group-pbq" class="hidden flex items-center px-6 py-2">
+                            <span class="text-xs text-slate-400 font-medium italic">PBQ events coming soon...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center pt-2">
+                    <h2 class="text-slate-300 uppercase tracking-[0.2em] text-[9px] font-bold mb-3">Scramble</h2>
+                    <div class="scramble-box p-4 md:p-6 min-h-[100px] flex flex-col items-center justify-center">
+                        <div id="scramble" class="text-sm md:text-base font-bold text-slate-600 whitespace-pre-wrap text-center max-w-3xl leading-relaxed">Generating...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modified container: scope interaction only to this area -->
+            <div id="timerContainer" class="flex flex-col items-center justify-center flex-grow w-full select-none py-4">
+                <div id="timerInteractiveArea" class="flex flex-col items-center cursor-pointer p-8 rounded-3xl transition-colors hover:bg-slate-100/30">
+                    <div id="timerDisplayContainer" class="w-full flex justify-center">
+                        <div id="timer" class="timer-display text-slate-800 transition-all duration-100">0.00</div>
+                        <input type="text" id="manualInput" class="manual-input hidden" placeholder="0.00">
+                    </div>
+                    <div class="flex gap-4 mt-6">
+                        <div class="avg-badge">
+                            <span id="labelPrimaryAvg" class="text-[10px] uppercase font-bold text-blue-400 mb-1 tracking-widest">Ao5</span>
+                            <span id="displayPrimaryAvg" class="text-2xl md:text-3xl text-slate-700 font-bold tracking-tighter">-</span>
+                        </div>
+                        <div class="avg-badge">
+                            <span class="text-[10px] uppercase font-bold text-purple-400 mb-1 tracking-widest">Ao12</span>
+                            <span id="displayAo12" class="text-2xl md:text-3xl text-slate-700 font-bold tracking-tighter">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="statusHint" class="bg-white/50 px-3 py-1 rounded-full text-slate-400 mt-10 text-[10px] font-bold tracking-wide shadow-sm border border-white">HOLD TO READY (0.2s)</div>
+            </div>
+
+            <div class="w-full max-w-md flex justify-center gap-3 mb-2">
+                <button id="plus2Btn" class="penalty-btn inactive" onclick="togglePenalty('+2')">+2</button>
+                <button id="dnfBtn" class="penalty-btn inactive" onclick="togglePenalty('DNF')">DNF</button>
+            </div>
+        </div>
+
+        <div class="w-full md:w-80 history-panel flex flex-col order-1 md:order-2 overflow-hidden self-start">
+            <div class="p-4 border-b border-slate-50 flex justify-between items-center bg-white shrink-0">
+                <div class="flex items-center gap-2"><h3 class="font-bold text-slate-600 text-sm">Solves</h3><span id="solveCount" class="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">0</span></div>
+                <button id="clearHistoryBtn" class="text-[10px] font-bold text-slate-300 hover:text-red-400 transition-colors uppercase">Clear</button>
+            </div>
+            <div id="historyList" class="flex-grow overflow-y-auto p-3 space-y-1.5 custom-scroll border-b border-slate-50 min-h-[200px]"></div>
+            <div class="bg-slate-50/30 overflow-hidden shrink-0">
+                <div class="p-4 bg-white border-b border-slate-100 space-y-1.5">
+                    <div class="flex justify-between items-center"><span class="text-[10px] font-bold text-slate-400 uppercase">Session Avg</span><span id="sessionAvg" class="text-xs font-bold text-slate-600">-</span></div>
+                    <div class="flex justify-between items-center"><span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Best Solve</span><span id="bestSolve" class="text-xs font-bold text-blue-500">-</span></div>
+                </div>
+                <div class="flex flex-col items-center justify-center p-4">
+                    <h4 class="text-[9px] font-bold text-slate-300 uppercase tracking-widest mb-3">Cube State</h4>
+                    <div id="visualizerContainer" class="w-full flex justify-center items-center"><canvas id="cubeVisualizer" width="220" height="160"></canvas></div>
+                    <div id="noVisualizerMsg" class="hidden text-[10px] text-slate-300 italic">Visualizer for standard cubes only</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let solves = [];
+        let currentEvent = '333';
+        let isRunning = false;
+        let isReady = false;
+        let startTime;
+        let timerInterval;
+        let currentScramble = "";
+        let precision = 2;
+        let isManualMode = false;
+        let holdTimer = null;
+        let selectedSolveId = null;
+        let isAo5Mode = true;
+
+        const timerEl = document.getElementById('timer');
+        const scrambleEl = document.getElementById('scramble');
+        const manualInput = document.getElementById('manualInput');
+        const historyList = document.getElementById('historyList');
+        const solveCountEl = document.getElementById('solveCount');
+        const sessionAvgEl = document.getElementById('sessionAvg');
+        const bestSolveEl = document.getElementById('bestSolve');
+        const labelPrimaryAvg = document.getElementById('labelPrimaryAvg');
+        const displayPrimaryAvg = document.getElementById('displayPrimaryAvg');
+        const displayAo12 = document.getElementById('displayAo12');
+        const statusHint = document.getElementById('statusHint');
+        const plus2Btn = document.getElementById('plus2Btn');
+        const dnfBtn = document.getElementById('dnfBtn');
+        const visualizerCanvas = document.getElementById('cubeVisualizer');
+        const noVisualizerMsg = document.getElementById('noVisualizerMsg');
+
+        const configs = {
+            '333': { moves: ["U","D","L","R","F","B"], len: 21, n: 3, cat: 'standard' },
+            '333oh': { moves: ["U","D","L","R","F","B"], len: 21, n: 3, cat: 'standard' },
+            '222': { moves: ["U","R","F"], len: 11, n: 2, cat: 'standard' },
+            '444': { moves: ["U","D","L","R","F","B","Uw","Rw","Fw"], len: 44, n: 4, cat: 'standard' },
+            '555': { moves: ["U","D","L","R","F","B","Uw","Dw","Lw","Rw","Fw","Bw"], len: 60, n: 5, cat: 'standard' },
+            '666': { moves: ["U","D","L","R","F","B","Uw","Dw","Lw","Rw","Fw","Bw","3Uw","3Rw","3Fw"], len: 80, n: 6, cat: 'standard' },
+            '777': { moves: ["U","D","L","R","F","B","Uw","Dw","Lw","Rw","Fw","Bw","3Uw","3Dw","3Lw","3Rw","3Fw","3Bw"], len: 100, n: 7, cat: 'standard' },
+            'minx': { moves: ["R++","R--","D++","D--"], len: 77, cat: 'nonstandard' },
+            'pyra': { moves: ["U","L","R","B"], len: 10, tips: ["u","l","r","b"], cat: 'nonstandard' },
+            'clock': { len: 18, cat: 'nonstandard' },
+            'skewb': { moves: ["U","L","R","B"], len: 10, cat: 'nonstandard' },
+            'sq1': { len: 12, cat: 'nonstandard' }
+        };
+
+        const suffixes = ["", "'", "2"];
+        let cubeState = {};
+        const COLORS = { U: '#FFFFFF', D: '#FFD500', L: '#FF8C00', R: '#DC2626', F: '#16A34A', B: '#2563EB' };
+
+        function initCube(n = 3) {
+            cubeState = { n };
+            ['U','D','L','R','F','B'].forEach(f => cubeState[f] = Array(n*n).fill(COLORS[f]));
+        }
+
+        function rotateFaceMatrix(fName) {
+            const n = cubeState.n;
+            const f = cubeState[fName];
+            const next = Array(n*n);
+            for(let r=0; r<n; r++) for(let c=0; c<n; c++) next[c*n + (n-1-r)] = f[r*n + c];
+            cubeState[fName] = next;
+        }
+
+        function applyMove(move) {
+            const n = cubeState.n; if(!n) return;
+            let base = move[0], layer = 1;
+            if(move.includes('w')) {
+                if(/^\d/.test(move)) { layer = parseInt(move[0]); base = move[1]; }
+                else { layer = 2; base = move[0]; }
+            }
+            const reps = move.includes("'") ? 3 : (move.includes("2") ? 2 : 1);
+            for(let r=0; r<reps; r++) {
+                for(let l=1; l<=layer; l++) {
+                    if(l===1) rotateFaceMatrix(base);
+                    const d = l-1, last = n-1-d;
+                    if(base==='U') for(let i=0; i<n; i++) { let t=cubeState.F[d*n+i]; cubeState.F[d*n+i]=cubeState.R[d*n+i]; cubeState.R[d*n+i]=cubeState.B[d*n+i]; cubeState.B[d*n+i]=cubeState.L[d*n+i]; cubeState.L[d*n+i]=t; }
+                    else if(base==='D') for(let i=0; i<n; i++) { let t=cubeState.F[last*n+i]; cubeState.F[last*n+i]=cubeState.L[last*n+i]; cubeState.L[last*n+i]=cubeState.B[last*n+i]; cubeState.B[last*n+i]=cubeState.R[last*n+i]; cubeState.R[last*n+i]=t; }
+                    else if(base==='L') for(let i=0; i<n; i++) { let t=cubeState.F[i*n+d]; cubeState.F[i*n+d]=cubeState.U[i*n+d]; cubeState.U[i*n+d]=cubeState.B[(n-1-i)*n+(n-1-d)]; cubeState.B[(n-1-i)*n+(n-1-d)]=cubeState.D[i*n+d]; cubeState.D[i*n+d]=t; }
+                    else if(base==='R') for(let i=0; i<n; i++) { let t=cubeState.F[i*n+last]; cubeState.F[i*n+last]=cubeState.D[i*n+last]; cubeState.D[i*n+last]=cubeState.B[(n-1-i)*n+d]; cubeState.B[(n-1-i)*n+d]=cubeState.U[i*n+last]; cubeState.U[i*n+last]=t; }
+                    else if(base==='F') for(let i=0; i<n; i++) { let t=cubeState.U[last*n+i]; cubeState.U[last*n+i]=cubeState.L[(n-1-i)*n+last]; cubeState.L[(n-1-i)*n+last]=cubeState.D[d*n+(n-1-i)]; cubeState.D[d*n+(n-1-i)]=cubeState.R[i*n+d]; cubeState.R[i*n+d]=t; }
+                    else if(base==='B') for(let i=0; i<n; i++) { let t=cubeState.U[d*n+i]; cubeState.U[d*n+i]=cubeState.R[i*n+last]; cubeState.R[i*n+last]=cubeState.D[last*n+(n-1-i)]; cubeState.D[last*n+(n-1-i)]=cubeState.L[(n-1-i)*n+d]; cubeState.L[(n-1-i)*n+d]=t; }
+                }
+            }
+        }
+
+        function drawCube() {
+            const n = cubeState.n;
+            if(!n) { visualizerCanvas.style.display='none'; noVisualizerMsg.classList.remove('hidden'); return; }
+            visualizerCanvas.style.display='block'; noVisualizerMsg.classList.add('hidden');
+            const ctx = visualizerCanvas.getContext('2d');
+            const faceS = 45, tileS = faceS/n, gap = 3;
+            ctx.clearRect(0,0,220,160);
+            const offX = (220-(4*faceS+3*gap))/2, offY = (160-(3*faceS+2*gap))/2;
+            const drawF = (f,x,y) => cubeState[f].forEach((c,i) => {
+                ctx.fillStyle=c; ctx.fillRect(x+(i%n)*tileS, y+Math.floor(i/n)*tileS, tileS, tileS);
+                ctx.strokeStyle='#1e293b'; ctx.lineWidth=n>5?0.2:0.5; ctx.strokeRect(x+(i%n)*tileS, y+Math.floor(i/n)*tileS, tileS, tileS);
+            });
+            drawF('U', offX+faceS+gap, offY);
+            drawF('L', offX, offY+faceS+gap);
+            drawF('F', offX+faceS+gap, offY+faceS+gap);
+            drawF('R', offX+2*(faceS+gap), offY+faceS+gap);
+            drawF('B', offX+3*(faceS+gap), offY+faceS+gap);
+            drawF('D', offX+faceS+gap, offY+2*(faceS+gap));
+        }
+
+        function switchCategory(cat) {
+            if(isRunning) return;
+            document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`cat-${cat}`).classList.add('active');
+            const groups = ['standard', 'nonstandard', 'pbq'];
+            groups.forEach(g => {
+                const el = document.getElementById(`group-${g}`);
+                if (g === cat) { el.classList.remove('hidden'); el.classList.add('flex'); }
+                else { el.classList.add('hidden'); el.classList.remove('flex'); }
+            });
+            const targetGroup = document.getElementById(`group-${cat}`);
+            const firstButton = targetGroup.querySelector('button');
+            if (firstButton) {
+                const eventId = firstButton.id.replace('tab-', '');
+                changeEvent(eventId);
+            }
+        }
+
+        function changeEvent(e) {
+            if(isRunning) return;
+            currentEvent = e;
+            document.querySelectorAll('.event-tab').forEach(t => t.classList.remove('active'));
+            const activeTab = document.getElementById(`tab-${e}`);
+            if (activeTab) activeTab.classList.add('active');
+            generateScramble();
+            updateUI();
+            timerEl.innerText = (0).toFixed(precision);
+        }
+
+        function generateScramble() {
+            const conf = configs[currentEvent];
+            if (!conf) { scrambleEl.innerText = "Select an event"; return; }
+            let res = [];
+            
+            if (currentEvent === 'minx') {
+                for (let i = 0; i < 7; i++) {
+                    let line = [];
+                    for (let j = 0; j < 10; j++) line.push((j%2===0?"R":"D") + (Math.random()<0.5?"++":"--"));
+                    line.push(Math.random()<0.5?"U":"U'");
+                    res.push(line.join(" "));
+                }
+                currentScramble = res.join("\n");
+            } else if (currentEvent === 'clock') {
+                ["UR","DR","DL","UL","U","R","D","L","ALL"].forEach(d => {
+                    const v = Math.floor(Math.random()*12)-5; res.push(`${d}${v>=0?'+':''}${v}`);
+                });
+                res.push("y2");
+                ["U","R","D","L","ALL"].forEach(d => {
+                    const v = Math.floor(Math.random()*12)-5; res.push(`${d}${v>=0?'+':''}${v}`);
+                });
+                let pins = []; ["UR","DR","DL","UL"].forEach(p => { if(Math.random()<0.5) pins.push(p); });
+                if(pins.length) res.push(pins.join(" "));
+                currentScramble = res.join(" ");
+            } else if (currentEvent === 'sq1') {
+                for (let i = 0; i < conf.len; i++) {
+                    let u = Math.floor(Math.random()*12)-5, d = Math.floor(Math.random()*12)-5;
+                    if (u===0 && d===0) { i--; continue; } res.push(`(${u},${d})`);
+                }
+                currentScramble = res.join(" / ");
+            } else if (currentEvent === 'pyra' || currentEvent === 'skewb') {
+                let last="";
+                for (let i = 0; i < conf.len; i++) {
+                    let m; do { m = conf.moves[Math.floor(Math.random()*conf.moves.length)]; } while(m===last);
+                    res.push(m + (Math.random()<0.5?"'":"")); last=m;
+                }
+                if(currentEvent === 'pyra') conf.tips.forEach(t => { const r=Math.floor(Math.random()*3); if(r===1) res.push(t); else if(r===2) res.push(t+"'"); });
+                currentScramble = res.join(" ");
+            } else {
+                let last="";
+                for (let i = 0; i < conf.len; i++) {
+                    let m; do { m = conf.moves[Math.floor(Math.random()*conf.moves.length)]; } while(m[0]===last[0]);
+                    res.push(m + suffixes[Math.floor(Math.random()*3)]); last=m;
+                }
+                currentScramble = res.join(" ");
+            }
+
+            scrambleEl.innerText = currentScramble;
+            if (conf.n) {
+                initCube(conf.n);
+                currentScramble.split(/\s+/).filter(s=>s && s!=='y2').forEach(applyMove);
+                drawCube();
+            } else { cubeState={}; drawCube(); }
+            resetPenalty();
+        }
+
+        function formatTime(ms) {
+            let s = ms/1000;
+            if(s < 60) return s.toFixed(precision);
+            const m = Math.floor(s/60);
+            const sec = (s%60).toFixed(precision).padStart(precision+3, '0');
+            return `${m}:${sec}`;
+        }
+
+        function updateUI() {
+            let filtered = solves.filter(s=>s.event===currentEvent);
+            historyList.innerHTML = filtered.map(s => `
+                <div class="bg-white border border-slate-100 p-2.5 rounded-xl flex justify-between items-center group cursor-pointer" onclick="showSolveDetails(${s.id})">
+                    <span class="font-bold text-slate-600 text-xs">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span>
+                    <button onclick="event.stopPropagation(); deleteSolve(${s.id})" class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            `).join('') || '<div class="text-center py-10 text-slate-300 text-[11px] italic">No solves yet</div>';
+
+            solveCountEl.innerText = filtered.length;
+            
+            if (isAo5Mode) {
+                labelPrimaryAvg.innerText = "Ao5";
+                displayPrimaryAvg.innerText = calculateAvg(filtered, 5);
+            } else {
+                labelPrimaryAvg.innerText = "Mo3";
+                displayPrimaryAvg.innerText = calculateAvg(filtered, 3, true);
+            }
+
+            displayAo12.innerText = calculateAvg(filtered, 12);
+            let valid = filtered.filter(s=>s.penalty!=='DNF').map(s=>s.penalty==='+2'?s.time+2000:s.time);
+            sessionAvgEl.innerText = valid.length ? formatTime(valid.reduce((a,b)=>a+b,0)/valid.length) : "-";
+            bestSolveEl.innerText = valid.length ? formatTime(Math.min(...valid)) : "-";
+        }
+
+        function calculateAvg(list, count, mean=false) {
+            if(list.length < count) return "-";
+            let slice = list.slice(0, count);
+            let dnfC = slice.filter(s=>s.penalty==='DNF').length;
+            if(dnfC >= (mean?1:2)) return "DNF";
+            let nums = slice.map(s => s.penalty==='DNF'?Infinity:(s.penalty==='+2'?s.time+2000:s.time));
+            if(mean) return formatTime(nums.reduce((a,b)=>a+b,0)/count);
+            nums.sort((a,b)=>a-b); nums.pop(); nums.shift();
+            return formatTime(nums.reduce((a,b)=>a+b,0)/nums.length);
+        }
+
+        function startTimer() {
+            startTime = Date.now(); isRunning = true;
+            timerInterval = setInterval(()=> timerEl.innerText = formatTime(Date.now()-startTime), 10);
+            statusHint.innerText = "RUNNING..."; timerEl.classList.add('text-blue-600');
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            let elapsed = Date.now()-startTime;
+            solves.unshift({id:Date.now(), time:elapsed, scramble:currentScramble, event:currentEvent, penalty:null});
+            isRunning = isReady = false;
+            updateUI(); generateScramble();
+            statusHint.innerText = "HOLD TO READY"; timerEl.classList.remove('text-blue-600');
+        }
+
+        function togglePenalty(p) {
+            if(!solves.length || isRunning || solves[0].event!==currentEvent) return;
+            solves[0].penalty = (solves[0].penalty===p)?null:p;
+            let s = solves[0];
+            timerEl.innerText = s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time) + (s.penalty==='+2'?'+':'');
+            updateUI(); updatePenaltyBtns(s);
+        }
+
+        function updatePenaltyBtns(s) {
+            plus2Btn.className = `penalty-btn ${s?.penalty==='+2'?'active-plus2':'inactive'}`;
+            dnfBtn.className = `penalty-btn ${s?.penalty==='DNF'?'active-dnf':'inactive'}`;
+        }
+        function resetPenalty() { updatePenaltyBtns(null); }
+        function deleteSolve(id) { solves = solves.filter(s => s.id !== id); updateUI(); }
+
+        function handleStart() {
+            if(isManualMode || isRunning) { if(isRunning) stopTimer(); return; }
+            timerEl.classList.add('holding-status');
+            holdTimer = setTimeout(()=> { isReady=true; timerEl.classList.replace('holding-status','ready-to-start'); statusHint.innerText="READY!"; }, 200);
+        }
+        function handleEnd() {
+            clearTimeout(holdTimer);
+            if(!isRunning && isReady) startTimer();
+            else { timerEl.classList.remove('holding-status','ready-to-start'); isReady=false; statusHint.innerText="HOLD TO READY"; }
+        }
+
+        window.addEventListener('keydown', e => {
+            if(e.code==='Space' && !e.repeat) { e.preventDefault(); handleStart(); }
+            if(isManualMode && e.code==='Enter') {
+                let v = parseFloat(manualInput.value);
+                if(v>0) { solves.unshift({id:Date.now(), time:v*1000, scramble:currentScramble, event:currentEvent, penalty:null}); manualInput.value=""; updateUI(); generateScramble(); }
+            }
+        });
+        window.addEventListener('keyup', e => { if(e.code==='Space') handleEnd(); });
+
+        // Scoped interaction only to timerInteractiveArea
+        document.getElementById('timerInteractiveArea').onmousedown = e => { if(e.button===0) handleStart(); };
+        window.onmouseup = () => handleEnd();
+
+        // Modal Controls
+        window.openSettings = () => { 
+            document.getElementById('settingsOverlay').classList.add('active'); 
+            setTimeout(()=>document.getElementById('settingsModal').classList.remove('scale-95','opacity-0'), 10); 
+        };
+        window.closeSettings = () => { 
+            document.getElementById('settingsModal').classList.add('scale-95','opacity-0'); 
+            setTimeout(()=>document.getElementById('settingsOverlay').classList.remove('active'), 200); 
+        };
+        window.handleOutsideSettingsClick = (e) => {
+            if(e.target === document.getElementById('settingsOverlay')) closeSettings();
+        };
+
+        window.showSolveDetails = (id) => {
+            let s = solves.find(x=>x.id===id); if(!s) return;
+            selectedSolveId = id;
+            document.getElementById('modalTime').innerText = s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time);
+            document.getElementById('modalEvent').innerText = s.event;
+            document.getElementById('modalScramble').innerText = s.scramble;
+            document.getElementById('modalOverlay').classList.add('active');
+        };
+        window.closeModal = () => document.getElementById('modalOverlay').classList.remove('active');
+        window.useThisScramble = () => { let s=solves.find(x=>x.id===selectedSolveId); if(s){currentScramble=s.scramble; scrambleEl.innerText=currentScramble; closeModal();} };
+
+        // Settings toggles
+        document.getElementById('precisionToggle').onchange = e => { 
+            precision = e.target.checked?3:2; 
+            updateUI(); 
+            timerEl.innerText=(0).toFixed(precision); 
+        };
+        document.getElementById('avgModeToggle').onchange = e => { 
+            isAo5Mode = e.target.checked; 
+            updateUI(); 
+        };
+        document.getElementById('manualEntryToggle').onchange = e => {
+            isManualMode = e.target.checked;
+            timerEl.classList.toggle('hidden', isManualMode);
+            manualInput.classList.toggle('hidden', !isManualMode);
+            statusHint.innerText = isManualMode ? "TYPE TIME & ENTER" : "HOLD TO READY";
+        };
+        document.getElementById('clearHistoryBtn').onclick = () => { if(confirm("Clear this event history?")) { solves=solves.filter(s=>s.event!==currentEvent); updateUI(); } };
+
+        initCube(3); generateScramble();
+    </script>
+</body>
+</html>
