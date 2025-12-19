@@ -84,6 +84,12 @@
         .penalty-btn.active-plus2 { @apply bg-orange-100 border-orange-200 text-orange-600; }
         .penalty-btn.active-dnf { @apply bg-red-100 border-red-200 text-red-600; }
         .penalty-btn.inactive { @apply bg-white border-slate-200 text-slate-400 hover:bg-slate-50; }
+        
+        /* 터치 반응성 개선 */
+        #timerInteractiveArea {
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col bg-slate-50 overflow-hidden">
@@ -103,7 +109,7 @@
     </header>
 
     <div id="settingsOverlay" class="modal-overlay" onclick="handleOutsideSettingsClick(event)">
-        <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 transform transition-all scale-95 opacity-0 duration-200" id="settingsModal" onclick="event.stopPropagation()">
+        <div class="bg-white rounded-3xl w-full max-sm shadow-2xl p-6 transform transition-all scale-95 opacity-0 duration-200" id="settingsModal" onclick="event.stopPropagation()">
             <h3 class="font-bold text-slate-700 text-lg mb-6">Settings</h3>
             <div class="space-y-4">
                 <div class="flex items-center justify-between p-3 bg-slate-50 rounded-2xl">
@@ -187,7 +193,7 @@
             </div>
 
             <div id="timerContainer" class="flex flex-col items-center justify-center flex-grow w-full select-none py-4">
-                <div id="timerInteractiveArea" class="flex flex-col items-center cursor-pointer p-8 rounded-3xl transition-colors hover:bg-slate-100/30">
+                <div id="timerInteractiveArea" class="flex flex-col items-center p-8 rounded-3xl transition-colors hover:bg-slate-100/30">
                     <div id="timerDisplayContainer" class="w-full flex justify-center">
                         <div id="timer" class="timer-display text-slate-800 transition-all duration-100">0.00</div>
                         <input type="text" id="manualInput" class="manual-input hidden" placeholder="0.00">
@@ -503,12 +509,14 @@
             timerEl.classList.add('holding-status');
             holdTimer = setTimeout(()=> { isReady=true; timerEl.classList.replace('holding-status','ready-to-start'); statusHint.innerText="READY!"; }, 200);
         }
-        function handleEnd() {
+        function handleEnd(e) {
+            if(e) e.preventDefault();
             clearTimeout(holdTimer);
             if(!isRunning && isReady) startTimer();
             else { timerEl.classList.remove('holding-status','ready-to-start'); isReady=false; statusHint.innerText="HOLD TO READY"; }
         }
 
+        // 키보드 이벤트 (스페이스바)
         window.addEventListener('keydown', e => {
             if(e.code==='Space' && !e.repeat) { e.preventDefault(); handleStart(); }
             if(isManualMode && e.code==='Enter') {
@@ -518,11 +526,12 @@
         });
         window.addEventListener('keyup', e => { if(e.code==='Space') handleEnd(); });
 
+        // 터치 이벤트
         const interactiveArea = document.getElementById('timerInteractiveArea');
-        interactiveArea.onmousedown = e => { if(e.button===0) handleStart(e); };
-        interactiveArea.ontouchstart = e => handleStart(e);
-        window.onmouseup = () => handleEnd();
-        window.ontouchend = () => handleEnd();
+        interactiveArea.addEventListener('touchstart', handleStart, { passive: false });
+        interactiveArea.addEventListener('touchend', handleEnd, { passive: false });
+
+        // 마우스 클릭(클릭 시작) 기능 제거: 오직 터치와 스페이스바만 허용
 
         window.openSettings = () => { 
             document.getElementById('settingsOverlay').classList.add('active'); 
