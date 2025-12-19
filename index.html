@@ -193,8 +193,10 @@
                 </div>
                 <h3 class="font-bold text-slate-700 text-lg">Bluetooth Timer</h3>
                 <p id="btStatusText" class="text-xs text-slate-400 mt-1 font-bold">Connect your Gan Smart Timer</p>
-                <!-- 에러 메시지를 더 잘 보이게 스타일 수정 -->
+                <!-- 에러 메시지 영역 -->
                 <p id="btErrorDetail" class="text-[11px] text-red-500 mt-2 font-bold bg-red-50 p-2 rounded-lg hidden break-words"></p>
+                <!-- 서비스 탐색 로그 영역 (디버깅용) -->
+                <div id="btDebugLog" class="text-[9px] text-slate-400 mt-2 font-mono text-left bg-slate-50 p-2 rounded-lg hidden h-20 overflow-y-auto"></div>
             </div>
             
             <div id="btInfoPanel" class="hidden bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100">
@@ -202,7 +204,6 @@
                     <span class="text-[10px] font-black text-slate-400 uppercase">Device</span>
                     <span id="btDeviceName" class="text-xs font-bold text-slate-600">-</span>
                 </div>
-                <!-- 배터리 정보는 읽어오지 않으므로 UI에서 제거하거나 숨김 처리 -->
                 <div class="flex justify-between items-center hidden">
                     <span class="text-[10px] font-black text-slate-400 uppercase">Battery</span>
                     <span id="btBatteryLevel" class="text-xs font-bold text-blue-600">-</span>
@@ -546,43 +547,113 @@
             const btBtn = document.getElementById('btConnectBtn');
             const btStatusText = document.getElementById('btStatusText');
             const btErrorDetail = document.getElementById('btErrorDetail');
+            const btDebugLog = document.getElementById('btDebugLog');
             const btIcon = document.getElementById('btModalIcon');
 
             btErrorDetail.classList.add('hidden');
+            btDebugLog.classList.add('hidden');
             btErrorDetail.innerText = "";
+            btDebugLog.innerHTML = "";
+
+            const log = (msg) => {
+                console.log("[BT]", msg);
+                btDebugLog.classList.remove('hidden');
+                btDebugLog.innerHTML += `> ${msg}<br>`;
+                btDebugLog.scrollTop = btDebugLog.scrollHeight;
+            };
 
             if (!navigator.bluetooth) {
-                btStatusText.innerText = "Web Bluetooth is not supported in this browser.";
-                btStatusText.classList.add('text-red-400');
+                btStatusText.innerText = "Web Bluetooth not supported.";
                 return;
             }
 
             try {
                 btBtn.disabled = true;
                 btBtn.innerText = "Searching...";
-                btStatusText.innerText = "Select your GAN Timer in the popup";
+                btStatusText.innerText = "Select GAN Timer...";
                 btIcon.classList.add('bt-pulse');
 
-                // [최종 수정] 'Not supported' 에러 해결을 위해 부가 서비스 요청(battery 등)을 모두 제거.
-                // 오직 GAN 타이머 전용 커스텀 서비스 하나만 명확하게 요청합니다.
+                // [전략 수정] 와일드카드 접근
+                // 1. 짧은 UUID(0xFFF0)와 긴 UUID를 모두 optionalServices에 등록
+                // 2. 혹시 몰라 표준 서비스들도 등록하여 권한 범위를 넓힘
+                const GAN_SERVICE_SHORT = 0xFFF0;
+                const GAN_SERVICE_LONG = '0000fff0-0000-1000-8000-00805f9b34fb';
+                const GAN_CHAR_SHORT = 0xFFF1;
+                const GAN_CHAR_LONG = '0000fff1-0000-1000-8000-00805f9b34fb';
+
+                log("Requesting Device...");
+                
                 btDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: 'GAN' }],
-                    optionalServices: ['0000fff0-0000-1000-8000-00805f9b34fb']
+                    filters: [{ namePrefix: 'GAN' }], 
+                    optionalServices: [GAN_SERVICE_SHORT, GAN_SERVICE_LONG]
                 });
 
-                btStatusText.innerText = "Connecting...";
+                log(`Selected: ${btDevice.name}`);
+                btStatusText.innerText = "Connecting GATT...";
                 
                 const server = await btDevice.gatt.connect();
+                log("GATT Connected.");
                 
-                // [안정화 유지] 연결 직후 즉시 명령을 보내면 기기가 당황할 수 있으므로 0.5초 대기
+                // 안정화 대기
                 await new Promise(r => setTimeout(r, 500));
 
-                const service = await server.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb');
-                btCharacteristic = await service.getCharacteristic('0000fff1-0000-1000-8000-00805f9b34fb');
+                let service = null;
+                
+                // [서비스 탐색 전략 1] 긴 UUID로 시도
+                try {
+                    log("Trying Long UUID...");
+                    service = await server.getPrimaryService(GAN_SERVICE_LONG);
+                    log("Found Long UUID!");
+                } catch (e) {
+                    log("Long UUID failed. Trying Short...");
+                    // [서비스 탐색 전략 2] 실패시 짧은 UUID(0xFFF0)로 시도
+                    try {
+                        service = await server.getPrimaryService(GAN_SERVICE_SHORT);
+                        log("Found Short UUID!");
+                    } catch (e2) {
+                        log("Short UUID failed.");
+                        // [서비스 탐색 전략 3] 최후의 수단: 권한 있는 모든 서비스 뒤지기
+                        log("Listing all services...");
+                        const services = await server.getPrimaryServices();
+                        log(`Found ${services.length} services.`);
+                        // FFF0가 포함된 서비스 찾기
+                        service = services.find(s => s.uuid.indexOf('fff0') !== -1 || s.uuid.indexOf('FFF0') !== -1);
+                    }
+                }
+
+                if (!service) {
+                    throw new Error("GAN Service (FFF0) not found on device.");
+                }
+
+                log(`Service OK: ${service.uuid}`);
+                
+                // 특성(Characteristic) 찾기 - 마찬가지로 두 가지 방식 시도
+                let characteristic = null;
+                try {
+                    characteristic = await service.getCharacteristic(GAN_CHAR_LONG);
+                } catch (e) {
+                    try {
+                        characteristic = await service.getCharacteristic(GAN_CHAR_SHORT);
+                    } catch (e2) {
+                         // 최후의 수단: FFF1이 포함된 특성 찾기
+                         const chars = await service.getCharacteristics();
+                         characteristic = chars.find(c => c.uuid.indexOf('fff1') !== -1);
+                    }
+                }
+
+                if (!characteristic) {
+                    throw new Error("Characteristic FFF1 not found.");
+                }
+
+                btCharacteristic = characteristic;
+                log("Characteristic OK. Starting notify...");
 
                 await btCharacteristic.startNotifications();
                 btCharacteristic.addEventListener('characteristicvaluechanged', handleGanBTData);
 
+                log("Success!");
+                
+                // UI 성공 처리
                 isBtConnected = true;
                 document.getElementById('btStatusIcon').classList.replace('disconnected', 'connected');
                 document.getElementById('btInfoPanel').classList.remove('hidden');
@@ -591,15 +662,17 @@
                 btBtn.classList.add('hidden');
                 btStatusText.innerText = "Timer Connected & Ready";
                 btIcon.classList.remove('bt-pulse');
+                btDebugLog.classList.add('hidden'); // 성공시 로그 숨김
                 
                 statusHint.innerText = "Timer Ready (BT)";
                 btDevice.addEventListener('gattserverdisconnected', onBTDisconnected);
 
             } catch (error) {
-                console.error("Bluetooth Connection Error:", error);
+                console.error("BT Error:", error);
                 btStatusText.innerText = "Connection failed";
                 btErrorDetail.innerText = error.message || error;
                 btErrorDetail.classList.remove('hidden');
+                log(`Error: ${error.message}`);
                 
                 btBtn.disabled = false;
                 btBtn.innerText = "Connect Timer";
