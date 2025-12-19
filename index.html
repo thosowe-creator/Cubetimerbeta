@@ -16,14 +16,15 @@
         }
         .timer-display {
             font-family: 'JetBrains+Mono', monospace;
-            font-size: clamp(3rem, 18vw, 8rem);
+            font-size: clamp(4rem, 18vw, 10rem); 
             font-variant-numeric: tabular-nums;
             font-weight: 700;
             letter-spacing: -0.05em;
+            line-height: 1;
         }
         .manual-input {
             font-family: 'JetBrains+Mono', monospace;
-            font-size: clamp(2rem, 10vw, 5rem);
+            font-size: clamp(2.5rem, 12vw, 6rem);
             background: transparent;
             border: none;
             outline: none;
@@ -38,28 +39,27 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
             letter-spacing: 0.05em;
             line-height: 1.6;
+            width: 100%;
         }
         .history-panel {
             background-color: #ffffff;
             border-radius: 1.5rem;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-            max-height: none;
         }
 
         @media (min-width: 768px) {
             .history-panel {
-                max-height: calc(100vh - 100px);
+                height: calc(100vh - 120px);
             }
         }
 
         .category-btn, .event-tab {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             white-space: nowrap;
+            position: relative;
+            z-index: 1;
         }
         
-        .category-btn {
-            color: #94a3b8;
-        }
         .category-btn.active {
             background-color: #3b82f6;
             color: white;
@@ -75,18 +75,23 @@
         .custom-scroll::-webkit-scrollbar { width: 5px; }
         .custom-scroll::-webkit-scrollbar-track { background: transparent; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        
         .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e2e8f0; transition: .4s; border-radius: 34px; }
         .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: #3b82f6; }
         input:checked + .slider:before { transform: translateX(20px); }
+        
         .ready-to-start { color: #10b981 !important; transform: scale(1.02); }
         .holding-status { color: #ef4444 !important; }
-        .avg-badge { @apply px-4 py-3 rounded-2xl bg-white border border-slate-50 shadow-sm flex flex-col items-center min-w-[110px] transition-all; }
+        
+        .avg-badge { @apply px-6 py-4 rounded-2xl bg-white border border-slate-50 shadow-sm flex flex-col items-center min-w-[140px] transition-all cursor-pointer hover:bg-slate-50 active:scale-95; }
+        
         .modal-overlay { background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); display: none; position: fixed; inset: 0; z-index: 50; align-items: center; justify-content: center; padding: 1rem; }
         .modal-overlay.active { display: flex; }
-        .penalty-btn { @apply flex-1 py-3 text-xs font-bold rounded-xl transition-all border; touch-action: auto; }
+        
+        .penalty-btn { @apply flex-1 py-4 text-sm font-bold rounded-xl transition-all border; touch-action: auto; }
         .penalty-btn:active { transform: scale(0.95); }
         .penalty-btn.active-plus2 { @apply bg-orange-100 border-orange-200 text-orange-600; }
         .penalty-btn.active-dnf { @apply bg-red-100 border-red-200 text-red-600; }
@@ -95,10 +100,49 @@
         #timerInteractiveArea {
             touch-action: none;
             -webkit-tap-highlight-color: transparent;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
+
+        .main-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .tools-dropdown {
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            margin-bottom: 8px;
+            background: white;
+            border: 1px border-slate-200;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 60;
+            width: 160px;
+        }
+        .tools-dropdown.show { display: flex; }
+        .tool-option {
+            padding: 10px 16px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            text-align: left;
+            transition: all 0.2s;
+        }
+        .tool-option:hover { background: #f1f5f9; color: #3b82f6; }
+        .tool-option.active { color: #3b82f6; background: #eff6ff; }
     </style>
 </head>
-<body class="min-h-screen flex flex-col bg-slate-50 overflow-x-hidden">
+<body class="h-screen flex flex-col bg-slate-50 overflow-hidden">
 
     <header class="w-full h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between z-40 shrink-0">
         <div class="flex items-center gap-2">
@@ -107,25 +151,54 @@
             </div>
             <h1 class="font-bold text-slate-700 tracking-tight">CubeTimer</h1>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 md:gap-4">
+            <!-- Data Backup/Restore Controls -->
+            <div class="flex items-center bg-slate-100 rounded-xl p-1">
+                <button onclick="exportData()" class="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-tighter text-slate-500 hover:text-blue-600 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                    <span>Backup</span>
+                </button>
+                <div class="w-px h-3 bg-slate-300"></div>
+                <button onclick="triggerImport()" class="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-tighter text-slate-500 hover:text-purple-600 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                    <span>Restore</span>
+                </button>
+                <input type="file" id="importInput" class="hidden" accept=".json" onchange="importData(event)">
+            </div>
+
             <button onclick="openSettings()" class="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
         </div>
     </header>
 
+    <div id="sessionOverlay" class="modal-overlay" onclick="closeSessionModal()">
+        <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-bold text-slate-700 text-lg">Sessions</h3>
+                <span id="sessionCountLabel" class="text-[11px] font-bold text-slate-400">0/10</span>
+            </div>
+            <div id="sessionList" class="space-y-2 mb-6 max-h-[250px] overflow-y-auto custom-scroll pr-1"></div>
+            <div id="sessionCreateForm" class="pt-4 border-t border-slate-100">
+                <p class="text-[10px] font-bold text-slate-400 uppercase mb-3">Create New Session</p>
+                <div class="flex gap-2">
+                    <input type="text" id="newSessionName" placeholder="Session Name" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-400 transition-all">
+                    <button onclick="createNewSession()" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold active:scale-95 transition-all">Add</button>
+                </div>
+            </div>
+            <button onclick="closeSessionModal()" class="w-full mt-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl text-sm">Close</button>
+        </div>
+    </div>
+
     <div id="settingsOverlay" class="modal-overlay" onclick="handleOutsideSettingsClick(event)">
-        <div class="bg-white rounded-3xl w-full max-sm shadow-2xl p-6 transform transition-all scale-95 opacity-0 duration-200" id="settingsModal" onclick="event.stopPropagation()">
+        <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 transform transition-all scale-95 opacity-0 duration-200" id="settingsModal" onclick="event.stopPropagation()">
             <h3 class="font-bold text-slate-700 text-lg mb-6">Settings</h3>
             <div class="space-y-4">
                 <div class="flex items-center justify-between p-3 bg-slate-50 rounded-2xl">
                     <div><p class="text-xs font-bold text-slate-600">Average Mode</p></div>
                     <div class="flex items-center gap-2">
                         <span class="text-[9px] font-bold text-slate-400">Mo3</span>
-                        <label class="switch">
-                            <input type="checkbox" id="avgModeToggle" checked>
-                            <span class="slider"></span>
-                        </label>
+                        <label class="switch"><input type="checkbox" id="avgModeToggle" checked><span class="slider"></span></label>
                         <span class="text-[9px] font-bold text-slate-400">Ao5</span>
                     </div>
                 </div>
@@ -146,102 +219,173 @@
         </div>
     </div>
 
-    <div id="modalOverlay" class="modal-overlay" onclick="closeModal(event)">
+    <div id="avgShareOverlay" class="modal-overlay" onclick="closeAvgShare()">
+        <div class="bg-white rounded-3xl w-full max-w-md shadow-2xl p-8" onclick="event.stopPropagation()">
+            <div class="flex flex-col mb-6">
+                <h4 class="font-bold text-blue-500 uppercase text-[10px] tracking-widest mb-1">[CubeTimer]</h4>
+                <p id="shareDate" class="text-slate-400 text-xs font-bold mb-4">Date : -</p>
+                <div class="flex items-end justify-between border-b border-slate-100 pb-4">
+                    <span id="shareLabel" class="text-slate-800 font-bold text-sm">Average of 5 :</span>
+                    <span id="shareAvg" class="text-3xl font-bold text-blue-600 tracking-tighter">0.00</span>
+                </div>
+            </div>
+            <div id="shareList" class="space-y-3 mb-8 max-h-[300px] overflow-y-auto custom-scroll pr-2"></div>
+            <div class="flex gap-3">
+                <button onclick="copyShareText()" class="flex-1 py-3.5 bg-slate-800 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                    Copy Text
+                </button>
+                <button onclick="closeAvgShare()" class="px-6 py-3.5 bg-slate-100 text-slate-600 font-bold rounded-xl text-sm">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalOverlay" class="modal-overlay" onclick="closeModal()">
         <div class="bg-white rounded-3xl w-full max-w-md shadow-2xl p-6" onclick="event.stopPropagation()">
             <h4 class="font-bold text-slate-400 uppercase text-[10px] tracking-widest mb-4">Solve Details</h4>
             <div id="modalTime" class="text-3xl font-bold text-slate-800 mb-1">0.00</div>
             <div id="modalEvent" class="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded w-fit mb-4">3x3x3</div>
-            <div class="space-y-1.5">
+            <div class="space-y-1.5 mb-6">
                 <span class="text-[9px] font-bold text-slate-400 uppercase">Scramble</span>
                 <div id="modalScramble" class="bg-slate-50 p-3 rounded-xl text-slate-600 font-bold text-xs leading-relaxed border border-slate-100 italic whitespace-pre-line">-</div>
             </div>
-            <button onclick="useThisScramble()" class="w-full mt-6 py-3.5 bg-slate-800 text-white font-bold rounded-xl text-sm">Use this Scramble</button>
+            <div class="flex flex-col gap-2">
+                <button onclick="openSingleShare()" class="w-full py-3.5 bg-blue-600 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></svg>
+                    Share Single
+                </button>
+                <div class="flex gap-2">
+                    <button onclick="useThisScramble()" class="flex-1 py-3.5 bg-slate-800 text-white font-bold rounded-xl text-sm">Use Scramble</button>
+                    <button onclick="closeModal()" class="flex-1 py-3.5 bg-slate-100 text-slate-600 font-bold rounded-xl text-sm">Close</button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <main class="flex flex-col md:flex-row p-4 gap-4 flex-grow overflow-y-auto md:overflow-hidden">
+    <main class="main-container flex flex-col md:flex-row p-4 gap-6 flex-grow overflow-hidden">
         
-        <!-- Timer Section (Mobile First) -->
-        <div class="flex-grow flex flex-col items-center justify-between p-2 md:p-4 h-full order-1 overflow-y-auto custom-scroll">
-            <div class="w-full max-w-4xl space-y-4">
+        <div class="flex-grow flex flex-col items-center justify-between h-full order-1">
+            <div class="w-full space-y-6">
                 <div class="flex flex-col items-center gap-4">
                     <div class="flex gap-1 p-1 bg-slate-200/50 rounded-full border border-slate-200">
-                        <button onclick="switchCategory('standard')" id="cat-standard" class="category-btn active px-5 py-2 text-xs font-bold rounded-full">Standard</button>
-                        <button onclick="switchCategory('nonstandard')" id="cat-nonstandard" class="category-btn px-5 py-2 text-xs font-bold rounded-full">Non-Standard</button>
-                        <button onclick="switchCategory('pbq')" id="cat-pbq" class="category-btn px-5 py-2 text-xs font-bold rounded-full">PBQ</button>
+                        <button onclick="switchCategory('standard')" id="cat-standard" class="category-btn active px-6 py-2.5 text-xs font-bold rounded-full">NxN</button>
+                        <button onclick="switchCategory('nonstandard')" id="cat-nonstandard" class="category-btn px-6 py-2.5 text-xs font-bold rounded-full">Etc.</button>
+                        <button onclick="switchCategory('blind')" id="cat-blind" class="category-btn px-6 py-2.5 text-xs font-bold rounded-full">Blind</button>
                     </div>
                     <div class="bg-white p-1 rounded-2xl shadow-sm border border-slate-100 flex overflow-x-auto max-w-full custom-scroll">
                         <div id="group-standard" class="flex gap-1">
-                            <button onclick="changeEvent('333')" class="event-tab active px-4 py-2 rounded-xl text-xs font-bold" id="tab-333">3x3</button>
-                            <button onclick="changeEvent('222')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-222">2x2</button>
-                            <button onclick="changeEvent('444')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-444">4x4</button>
-                            <button onclick="changeEvent('555')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-555">5x5</button>
-                            <button onclick="changeEvent('666')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-666">6x6</button>
-                            <button onclick="changeEvent('777')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-777">7x7</button>
-                            <button onclick="changeEvent('333oh')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-333oh">3x3OH</button>
+                            <button onclick="changeEvent('333')" class="event-tab active px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-333">3x3</button>
+                            <button onclick="changeEvent('222')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-222">2x2</button>
+                            <button onclick="changeEvent('444')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-444">4x4</button>
+                            <button onclick="changeEvent('555')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-555">5x5</button>
+                            <button onclick="changeEvent('666')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-666">6x6</button>
+                            <button onclick="changeEvent('777')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-777">7x7</button>
+                            <button onclick="changeEvent('333oh')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-333oh">3x3 OH</button>
                         </div>
                         <div id="group-nonstandard" class="hidden flex gap-1">
-                            <button onclick="changeEvent('clock')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-clock">Clock</button>
-                            <button onclick="changeEvent('minx')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-minx">Megaminx</button>
-                            <button onclick="changeEvent('pyra')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-pyra">Pyraminx</button>
-                            <button onclick="changeEvent('skewb')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-skewb">Skewb</button>
-                            <button onclick="changeEvent('sq1')" class="event-tab px-4 py-2 rounded-xl text-xs font-bold" id="tab-sq1">Square-1</button>
+                            <button onclick="changeEvent('clock')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-clock">Clock</button>
+                            <button onclick="changeEvent('minx')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-minx">Megaminx</button>
+                            <button onclick="changeEvent('pyra')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-pyra">Pyraminx</button>
+                            <button onclick="changeEvent('skewb')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-skewb">Skewb</button>
+                            <button onclick="changeEvent('sq1')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-sq1">Square-1</button>
                         </div>
-                        <div id="group-pbq" class="hidden flex items-center px-6 py-2">
-                            <span class="text-xs text-slate-400 font-medium italic">PBQ events coming soon...</span>
+                        <div id="group-blind" class="hidden flex items-center px-6 py-2">
+                            <span class="text-xs text-slate-400 font-medium italic">Blind events coming soon...</span>
                         </div>
                     </div>
                 </div>
-                <div class="text-center pt-2">
-                    <h2 class="text-slate-300 uppercase tracking-[0.2em] text-[9px] font-bold mb-3">Scramble</h2>
-                    <div class="scramble-box p-4 md:p-6 min-h-[100px] flex flex-col items-center justify-center">
-                        <div id="scramble" class="text-sm md:text-base font-bold text-slate-600 whitespace-pre-wrap text-center max-w-3xl leading-relaxed">Generating...</div>
+
+                <div class="text-center w-full">
+                    <h2 class="text-slate-300 uppercase tracking-[0.2em] text-[10px] font-bold mb-3">Scramble</h2>
+                    <div class="scramble-box p-6 md:p-8 min-h-[120px] flex flex-col items-center justify-center border border-slate-100">
+                        <div id="scramble" class="text-base md:text-xl font-bold text-slate-600 whitespace-pre-wrap text-center max-w-5xl leading-relaxed">Generating...</div>
                     </div>
                 </div>
             </div>
 
-            <div id="timerContainer" class="flex flex-col items-center justify-center flex-grow w-full select-none py-4">
-                <div id="timerInteractiveArea" class="flex flex-col items-center p-8 rounded-3xl transition-colors hover:bg-slate-100/30">
+            <div id="timerContainer" class="flex flex-col items-center justify-center flex-grow w-full select-none">
+                <div id="timerInteractiveArea" class="rounded-3xl transition-colors hover:bg-slate-100/30">
                     <div id="timerDisplayContainer" class="w-full flex justify-center">
                         <div id="timer" class="timer-display text-slate-800 transition-all duration-100">0.00</div>
                         <input type="text" id="manualInput" class="manual-input hidden" placeholder="0.00">
                     </div>
-                    <div class="flex gap-4 mt-6">
-                        <div class="avg-badge">
-                            <span id="labelPrimaryAvg" class="text-[10px] uppercase font-bold text-blue-400 mb-1 tracking-widest">Ao5</span>
+                    
+                    <div class="flex gap-6 mt-8">
+                        <div class="avg-badge" onclick="openAvgShare('primary')">
+                            <span id="labelPrimaryAvg" class="text-[11px] uppercase font-bold text-blue-400 mb-2 tracking-widest">Ao5</span>
                             <span id="displayPrimaryAvg" class="text-2xl md:text-3xl text-slate-700 font-bold tracking-tighter">-</span>
                         </div>
-                        <div class="avg-badge">
-                            <span class="text-[10px] uppercase font-bold text-purple-400 mb-1 tracking-widest">Ao12</span>
+                        <div class="avg-badge" onclick="openAvgShare('ao12')">
+                            <span class="text-[11px] uppercase font-bold text-purple-400 mb-2 tracking-widest">Ao12</span>
                             <span id="displayAo12" class="text-2xl md:text-3xl text-slate-700 font-bold tracking-tighter">-</span>
                         </div>
                     </div>
                 </div>
-                <div id="statusHint" class="bg-white/50 px-3 py-1 rounded-full text-slate-400 mt-10 text-[10px] font-bold tracking-wide shadow-sm border border-white">HOLD TO READY (0.2s)</div>
+                
+                <div id="statusHint" class="bg-white px-6 py-2 rounded-full text-slate-400 mt-4 text-xs font-bold tracking-widest shadow-sm border border-slate-100 uppercase transition-all duration-200">Hold to Ready</div>
             </div>
 
-            <div class="w-full max-w-md flex justify-center gap-3 mb-2">
+            <div class="w-full max-w-xl flex justify-center gap-4 mt-2 mb-6">
                 <button id="plus2Btn" class="penalty-btn inactive" onclick="togglePenalty('+2')">+2</button>
                 <button id="dnfBtn" class="penalty-btn inactive" onclick="togglePenalty('DNF')">DNF</button>
             </div>
         </div>
 
-        <!-- Sidebar Section (Now at bottom in mobile) -->
-        <div class="w-full md:w-80 history-panel flex flex-col order-2 overflow-hidden self-start">
-            <div class="p-4 border-b border-slate-50 flex justify-between items-center bg-white shrink-0">
-                <div class="flex items-center gap-2"><h3 class="font-bold text-slate-600 text-sm">Solves</h3><span id="solveCount" class="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">0</span></div>
-                <button id="clearHistoryBtn" class="text-[10px] font-bold text-slate-300 hover:text-red-400 transition-colors uppercase">Clear</button>
-            </div>
-            <div id="historyList" class="flex-grow overflow-y-auto p-3 space-y-1.5 custom-scroll border-b border-slate-50 min-h-[300px] md:min-h-[200px]"></div>
-            <div class="bg-slate-50/30 overflow-hidden shrink-0">
-                <div class="p-4 bg-white border-b border-slate-100 space-y-1.5">
-                    <div class="flex justify-between items-center"><span class="text-[10px] font-bold text-slate-400 uppercase">Session Avg</span><span id="sessionAvg" class="text-xs font-bold text-slate-600">-</span></div>
-                    <div class="flex justify-between items-center"><span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Best Solve</span><span id="bestSolve" class="text-xs font-bold text-blue-500">-</span></div>
+        <div class="w-full md:w-[360px] history-panel flex flex-col order-2 overflow-hidden shrink-0">
+            <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+                <div class="flex items-center gap-2">
+                    <h3 class="font-bold text-slate-700 text-base">History</h3>
+                    <button onclick="openSessionModal()" class="flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 transition-colors rounded-full text-slate-500 group">
+                        <span id="currentSessionNameDisplay" class="text-[10px] font-bold max-w-[80px] truncate">Session 1</span>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400 group-hover:text-slate-600"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    <span id="solveCount" class="text-[11px] font-bold bg-blue-50 text-blue-500 px-2.5 py-0.5 rounded-full">0</span>
                 </div>
-                <div class="flex flex-col items-center justify-center p-4">
-                    <h4 class="text-[9px] font-bold text-slate-300 uppercase tracking-widest mb-3">Cube State</h4>
-                    <div id="visualizerContainer" class="w-full flex justify-center items-center"><canvas id="cubeVisualizer" width="220" height="160"></canvas></div>
-                    <div id="noVisualizerMsg" class="hidden text-[10px] text-slate-300 italic">Visualizer for standard cubes only</div>
+                <button id="clearHistoryBtn" class="text-[11px] font-bold text-slate-300 hover:text-red-400 transition-colors uppercase tracking-wider">Clear</button>
+            </div>
+            
+            <div id="historyList" class="flex-grow overflow-y-auto p-4 space-y-2 custom-scroll bg-white border-b border-slate-100"></div>
+            
+            <div class="bg-slate-50 shrink-0">
+                <div class="p-5 bg-white border-b border-slate-100 grid grid-cols-2 gap-4">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Avg of All</span>
+                        <span id="sessionAvg" class="text-sm font-bold text-slate-700">-</span>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Personal Best</span>
+                        <span id="bestSolve" class="text-sm font-bold text-blue-600">-</span>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col p-4 bg-slate-50/50 relative">
+                    <div class="flex items-center justify-between mb-3 px-2">
+                        <span class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400" id="toolLabel">Scramble Image</span>
+                        <div class="relative">
+                            <button onclick="toggleToolsMenu(event)" class="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg text-[10px] font-bold text-slate-600 transition-all shadow-sm active:scale-95">
+                                Tools
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><path d="m6 9 6 6 6-6"/></svg>
+                            </button>
+                            <div id="toolsDropdown" class="tools-dropdown">
+                                <button onclick="selectTool('scramble')" class="tool-option active" id="tool-opt-scramble">Scramble Image</button>
+                                <button onclick="selectTool('graph')" class="tool-option" id="tool-opt-graph">Graph (Trends)</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="toolContainer" class="flex items-center justify-center min-h-[190px]">
+                        <div id="visualizerWrapper" class="w-full flex justify-center items-center">
+                            <canvas id="cubeVisualizer" width="260" height="190"></canvas>
+                            <div id="noVisualizerMsg" class="hidden text-[11px] text-slate-300 italic">Visualizer for standard cubes only</div>
+                        </div>
+                        <div id="graphWrapper" class="w-full h-[190px] hidden flex flex-col p-2">
+                            <div class="flex-1 bg-white rounded-xl border border-slate-100 shadow-inner overflow-hidden relative">
+                                <svg id="historyGraph" viewBox="0 0 100 100" preserveAspectRatio="none" class="w-full h-full p-2">
+                                    <polyline id="graphLine" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points=""/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -249,6 +393,7 @@
 
     <script>
         let solves = [];
+        let sessions = {}; 
         let currentEvent = '333';
         let isRunning = false;
         let isReady = false;
@@ -260,6 +405,8 @@
         let holdTimer = null;
         let selectedSolveId = null;
         let isAo5Mode = true;
+        let editingSessionId = null; 
+        let activeTool = 'scramble';
 
         const timerEl = document.getElementById('timer');
         const scrambleEl = document.getElementById('scramble');
@@ -277,6 +424,8 @@
         const visualizerCanvas = document.getElementById('cubeVisualizer');
         const noVisualizerMsg = document.getElementById('noVisualizerMsg');
         const avgModeToggle = document.getElementById('avgModeToggle');
+        const precisionToggle = document.getElementById('precisionToggle');
+        const manualEntryToggle = document.getElementById('manualEntryToggle');
 
         const configs = {
             '333': { moves: ["U","D","L","R","F","B"], len: 21, n: 3, cat: 'standard' },
@@ -297,15 +446,112 @@
         let cubeState = {};
         const COLORS = { U: '#FFFFFF', D: '#FFD500', L: '#FF8C00', R: '#DC2626', F: '#16A34A', B: '#2563EB' };
 
+        // Data Backup / Restore Functions
+        function exportData() {
+            const data = {
+                solves: solves,
+                sessions: sessions,
+                settings: { precision, isAo5Mode, currentEvent }
+            };
+            const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cubetimer_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function triggerImport() {
+            document.getElementById('importInput').click();
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.solves && data.sessions) {
+                        solves = data.solves;
+                        sessions = data.sessions;
+                        if (data.settings) {
+                            precision = data.settings.precision || 2;
+                            isAo5Mode = data.settings.isAo5Mode !== undefined ? data.settings.isAo5Mode : true;
+                            currentEvent = data.settings.currentEvent || '333';
+                            precisionToggle.checked = (precision === 3);
+                            avgModeToggle.checked = isAo5Mode;
+                        }
+                        saveData();
+                        location.reload(); // Refresh to apply all data cleanly
+                    } else {
+                        throw new Error("Invalid format");
+                    }
+                } catch (err) {
+                    const msg = document.createElement('div');
+                    msg.innerHTML = `<div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"><div class="bg-white rounded-2xl p-6 w-full max-w-xs shadow-2xl text-center"><p class="text-sm font-bold text-red-500 mb-6">Failed to restore data. Invalid JSON format.</p><button onclick="this.parentElement.parentElement.remove()" class="w-full py-3 bg-slate-800 text-white rounded-xl font-bold text-sm">Close</button></div></div>`;
+                    document.body.appendChild(msg);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function saveData() {
+            const data = {
+                solves: solves,
+                sessions: sessions,
+                settings: { precision, isAo5Mode, currentEvent }
+            };
+            localStorage.setItem('cubeTimerData_v4', JSON.stringify(data));
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('cubeTimerData_v4');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    solves = data.solves || [];
+                    sessions = data.sessions || {};
+                    if (data.settings) {
+                        precision = data.settings.precision || 2;
+                        isAo5Mode = data.settings.isAo5Mode !== undefined ? data.settings.isAo5Mode : true;
+                        currentEvent = data.settings.currentEvent || '333';
+                        precisionToggle.checked = (precision === 3);
+                        avgModeToggle.checked = isAo5Mode;
+                        const conf = configs[currentEvent];
+                        if (conf) switchCategory(conf.cat, false);
+                    }
+                } catch (e) { console.error("Load failed", e); }
+            }
+            initSessionIfNeeded(currentEvent);
+        }
+
+        function initSessionIfNeeded(eventId) {
+            if (!sessions[eventId] || sessions[eventId].length === 0) {
+                sessions[eventId] = [{ id: Date.now(), name: "Session 1", isActive: true }];
+            } else if (!sessions[eventId].find(s => s.isActive)) {
+                sessions[eventId][0].isActive = true;
+            }
+        }
+
+        function getCurrentSessionId() {
+            const eventSessions = sessions[currentEvent] || [];
+            const active = eventSessions.find(s => s.isActive);
+            if (active) return active.id;
+            initSessionIfNeeded(currentEvent);
+            return sessions[currentEvent][0].id;
+        }
+
         function initCube(n = 3) {
             cubeState = { n };
             ['U','D','L','R','F','B'].forEach(f => cubeState[f] = Array(n*n).fill(COLORS[f]));
         }
 
         function rotateFaceMatrix(fName) {
-            const n = cubeState.n;
-            const f = cubeState[fName];
-            const next = Array(n*n);
+            const n = cubeState.n; const f = cubeState[fName]; const next = Array(n*n);
             for(let r=0; r<n; r++) for(let c=0; c<n; c++) next[c*n + (n-1-r)] = f[r*n + c];
             cubeState[fName] = next;
         }
@@ -337,9 +583,9 @@
             if(!n) { visualizerCanvas.style.display='none'; noVisualizerMsg.classList.remove('hidden'); return; }
             visualizerCanvas.style.display='block'; noVisualizerMsg.classList.add('hidden');
             const ctx = visualizerCanvas.getContext('2d');
-            const faceS = 45, tileS = faceS/n, gap = 3;
-            ctx.clearRect(0,0,220,160);
-            const offX = (220-(4*faceS+3*gap))/2, offY = (160-(3*faceS+2*gap))/2;
+            const faceS = 55, tileS = faceS/n, gap = 4;
+            ctx.clearRect(0,0,260,190);
+            const offX = (260-(4*faceS+3*gap))/2, offY = (190-(3*faceS+2*gap))/2;
             const drawF = (f,x,y) => cubeState[f].forEach((c,i) => {
                 ctx.fillStyle=c; ctx.fillRect(x+(i%n)*tileS, y+Math.floor(i/n)*tileS, tileS, tileS);
                 ctx.strokeStyle='#1e293b'; ctx.lineWidth=n>5?0.2:0.5; ctx.strokeRect(x+(i%n)*tileS, y+Math.floor(i/n)*tileS, tileS, tileS);
@@ -352,68 +598,88 @@
             drawF('D', offX+faceS+gap, offY+2*(faceS+gap));
         }
 
-        function switchCategory(cat) {
+        window.toggleToolsMenu = (e) => {
+            e.stopPropagation();
+            document.getElementById('toolsDropdown').classList.toggle('show');
+        };
+
+        window.selectTool = (tool) => {
+            activeTool = tool;
+            document.getElementById('toolLabel').innerText = tool === 'scramble' ? 'Scramble Image' : 'Graph (Trends)';
+            document.getElementById('visualizerWrapper').classList.toggle('hidden', tool !== 'scramble');
+            document.getElementById('graphWrapper').classList.toggle('hidden', tool !== 'graph');
+            document.querySelectorAll('.tool-option').forEach(opt => opt.classList.remove('active'));
+            document.getElementById(`tool-opt-${tool}`).classList.add('active');
+            document.getElementById('toolsDropdown').classList.remove('show');
+            if (tool === 'graph') renderHistoryGraph();
+            else if (tool === 'scramble') drawCube();
+        };
+
+        window.addEventListener('click', () => {
+            document.getElementById('toolsDropdown').classList.remove('show');
+        });
+
+        function renderHistoryGraph() {
+            if (activeTool !== 'graph') return;
+            const sid = getCurrentSessionId();
+            const filtered = [...solves].filter(s => s.event === currentEvent && s.sessionId === sid).reverse();
+            const polyline = document.getElementById('graphLine');
+            if (filtered.length < 2) { polyline.setAttribute('points', ""); return; }
+            const validTimes = filtered.map(s => s.penalty === 'DNF' ? null : (s.penalty === '+2' ? s.time + 2000 : s.time));
+            const maxTime = Math.max(...validTimes.filter(t => t !== null));
+            const minTime = Math.min(...validTimes.filter(t => t !== null));
+            const range = maxTime - minTime || 1;
+            const points = filtered.map((s, i) => {
+                const t = s.penalty === 'DNF' ? maxTime : (s.penalty === '+2' ? s.time + 2000 : s.time);
+                const x = (i / (filtered.length - 1)) * 100;
+                const y = 90 - ((t - minTime) / range) * 80;
+                return `${x},${y}`;
+            }).join(' ');
+            polyline.setAttribute('points', points);
+        }
+
+        function switchCategory(cat, autoSelectFirst = true) {
             if(isRunning) return;
             document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(`cat-${cat}`).classList.add('active');
-            const groups = ['standard', 'nonstandard', 'pbq'];
+            const catBtn = document.getElementById(`cat-${cat}`); if (catBtn) catBtn.classList.add('active');
+            const groups = ['standard', 'nonstandard', 'blind'];
             groups.forEach(g => {
                 const el = document.getElementById(`group-${g}`);
                 if (g === cat) { el.classList.remove('hidden'); el.classList.add('flex'); }
                 else { el.classList.add('hidden'); el.classList.remove('flex'); }
             });
-            const targetGroup = document.getElementById(`group-${cat}`);
-            const firstButton = targetGroup.querySelector('button');
-            if (firstButton) {
-                const eventId = firstButton.id.replace('tab-', '');
-                changeEvent(eventId);
+            if (autoSelectFirst) {
+                const targetGroup = document.getElementById(`group-${cat}`);
+                const firstButton = targetGroup.querySelector('button');
+                if (firstButton) changeEvent(firstButton.id.replace('tab-', ''));
             }
         }
 
         function changeEvent(e) {
             if(isRunning) return;
             currentEvent = e;
+            initSessionIfNeeded(e);
             document.querySelectorAll('.event-tab').forEach(t => t.classList.remove('active'));
-            const activeTab = document.getElementById(`tab-${e}`);
-            if (activeTab) activeTab.classList.add('active');
-
-            // 666, 777 종목의 경우 Mo3 모드로 자동 전환
-            if (e === '666' || e === '777') {
-                isAo5Mode = false;
-                avgModeToggle.checked = false;
-            } else {
-                // 기존 사용자 설정을 유지하려면 이 부분을 조절할 수 있으나, 보통 큰 큐브는 Mo3가 국룰
-            }
-
-            generateScramble();
-            updateUI();
-            timerEl.innerText = (0).toFixed(precision);
+            const activeTab = document.getElementById(`tab-${e}`); if (activeTab) activeTab.classList.add('active');
+            if (e === '666' || e === '777') { isAo5Mode = false; avgModeToggle.checked = false; } 
+            else { isAo5Mode = true; avgModeToggle.checked = true; }
+            generateScramble(); updateUI(); timerEl.innerText = (0).toFixed(precision); saveData();
         }
 
         function generateScramble() {
-            const conf = configs[currentEvent];
-            if (!conf) { scrambleEl.innerText = "Select an event"; return; }
+            const conf = configs[currentEvent]; if (!conf) return;
             let res = [];
-            
             if (currentEvent === 'minx') {
                 for (let i = 0; i < 7; i++) {
-                    let line = [];
-                    for (let j = 0; j < 10; j++) line.push((j%2===0?"R":"D") + (Math.random()<0.5?"++":"--"));
-                    line.push(Math.random()<0.5?"U":"U'");
-                    res.push(line.join(" "));
+                    let line = []; for (let j = 0; j < 10; j++) line.push((j%2===0?"R":"D") + (Math.random()<0.5?"++":"--"));
+                    line.push(Math.random()<0.5?"U":"U'"); res.push(line.join(" "));
                 }
                 currentScramble = res.join("\n");
             } else if (currentEvent === 'clock') {
-                ["UR","DR","DL","UL","U","R","D","L","ALL"].forEach(d => {
-                    const v = Math.floor(Math.random()*12)-5; res.push(`${d}${v>=0?'+':''}${v}`);
-                });
-                res.push("y2");
-                ["U","R","D","L","ALL"].forEach(d => {
-                    const v = Math.floor(Math.random()*12)-5; res.push(`${d}${v>=0?'+':''}${v}`);
-                });
+                ["UR","DR","DL","UL","U","R","D","L","ALL"].forEach(d => { const v = Math.floor(Math.random()*12)-5; res.push(`${d}${v>=0?'+':''}${v}`); });
+                res.push("y2"); ["U","R","D","L","ALL"].forEach(d => { const v = Math.floor(Math.random()*12)-5; res.push(`${d}${v>=0?'+':''}${v}`); });
                 let pins = []; ["UR","DR","DL","UL"].forEach(p => { if(Math.random()<0.5) pins.push(p); });
-                if(pins.length) res.push(pins.join(" "));
-                currentScramble = res.join(" ");
+                if(pins.length) res.push(pins.join(" ")); currentScramble = res.join(" ");
             } else if (currentEvent === 'sq1') {
                 for (let i = 0; i < conf.len; i++) {
                     let u = Math.floor(Math.random()*12)-5, d = Math.floor(Math.random()*12)-5;
@@ -421,106 +687,94 @@
                 }
                 currentScramble = res.join(" / ");
             } else if (currentEvent === 'pyra' || currentEvent === 'skewb') {
-                let last="";
-                for (let i = 0; i < conf.len; i++) {
+                let last=""; for (let i = 0; i < conf.len; i++) {
                     let m; do { m = conf.moves[Math.floor(Math.random()*conf.moves.length)]; } while(m===last);
                     res.push(m + (Math.random()<0.5?"'":"")); last=m;
                 }
                 if(currentEvent === 'pyra') conf.tips.forEach(t => { const r=Math.floor(Math.random()*3); if(r===1) res.push(t); else if(r===2) res.push(t+"'"); });
                 currentScramble = res.join(" ");
             } else {
-                let last="";
-                for (let i = 0; i < conf.len; i++) {
+                let last=""; for (let i = 0; i < conf.len; i++) {
                     let m; do { m = conf.moves[Math.floor(Math.random()*conf.moves.length)]; } while(m[0]===last[0]);
                     res.push(m + suffixes[Math.floor(Math.random()*3)]); last=m;
                 }
                 currentScramble = res.join(" ");
             }
-
             scrambleEl.innerText = currentScramble;
-            if (conf.n) {
-                initCube(conf.n);
-                currentScramble.split(/\s+/).filter(s=>s && s!=='y2').forEach(applyMove);
-                drawCube();
-            } else { cubeState={}; drawCube(); }
+            if (conf.n) { initCube(conf.n); currentScramble.split(/\s+/).filter(s=>s && s!=='y2').forEach(applyMove); drawCube(); } 
+            else { cubeState={}; drawCube(); }
             resetPenalty();
+            if (activeTool === 'graph') renderHistoryGraph();
         }
 
         function formatTime(ms) {
-            let s = ms/1000;
-            if(s < 60) return s.toFixed(precision);
-            const m = Math.floor(s/60);
-            const sec = (s%60).toFixed(precision).padStart(precision+3, '0');
+            let s = ms/1000; if(s < 60) return s.toFixed(precision);
+            const m = Math.floor(s/60); const sec = (s%60).toFixed(precision).padStart(precision+3, '0');
             return `${m}:${sec}`;
         }
 
         function updateUI() {
-            let filtered = solves.filter(s=>s.event===currentEvent);
+            const sid = getCurrentSessionId();
+            let filtered = solves.filter(s => s.event === currentEvent && s.sessionId === sid);
+            const activeSession = (sessions[currentEvent] || []).find(s => s.isActive);
+            if (activeSession) document.getElementById('currentSessionNameDisplay').innerText = activeSession.name;
+            
             historyList.innerHTML = filtered.map(s => `
-                <div class="bg-white border border-slate-100 p-2.5 rounded-xl flex justify-between items-center group cursor-pointer" onclick="showSolveDetails(${s.id})">
-                    <span class="font-bold text-slate-600 text-xs">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span>
+                <div class="bg-slate-50 border border-slate-100 p-3 rounded-xl flex justify-between items-center group cursor-pointer hover:bg-white hover:shadow-sm transition-all" onclick="showSolveDetails(${s.id})">
+                    <span class="font-bold text-slate-700 text-sm">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span>
                     <button onclick="event.stopPropagation(); deleteSolve(${s.id})" class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
                     </button>
                 </div>
             `).join('') || '<div class="text-center py-10 text-slate-300 text-[11px] italic">No solves yet</div>';
 
             solveCountEl.innerText = filtered.length;
-            
-            if (isAo5Mode) {
-                labelPrimaryAvg.innerText = "Ao5";
-                displayPrimaryAvg.innerText = calculateAvg(filtered, 5);
-            } else {
-                labelPrimaryAvg.innerText = "Mo3";
-                displayPrimaryAvg.innerText = calculateAvg(filtered, 3, true);
-            }
-
+            if (isAo5Mode) { labelPrimaryAvg.innerText = "Ao5"; displayPrimaryAvg.innerText = calculateAvg(filtered, 5); } 
+            else { labelPrimaryAvg.innerText = "Mo3"; displayPrimaryAvg.innerText = calculateAvg(filtered, 3, true); }
             displayAo12.innerText = calculateAvg(filtered, 12);
             let valid = filtered.filter(s=>s.penalty!=='DNF').map(s=>s.penalty==='+2'?s.time+2000:s.time);
             sessionAvgEl.innerText = valid.length ? formatTime(valid.reduce((a,b)=>a+b,0)/valid.length) : "-";
             bestSolveEl.innerText = valid.length ? formatTime(Math.min(...valid)) : "-";
+            if (activeTool === 'graph') renderHistoryGraph();
         }
 
         function calculateAvg(list, count, mean=false) {
             if(list.length < count) return "-";
-            let slice = list.slice(0, count);
-            let dnfC = slice.filter(s=>s.penalty==='DNF').length;
+            let slice = list.slice(0, count); let dnfC = slice.filter(s=>s.penalty==='DNF').length;
             if(dnfC >= (mean?1:2)) return "DNF";
             let nums = slice.map(s => s.penalty==='DNF'?Infinity:(s.penalty==='+2'?s.time+2000:s.time));
-            if(mean) return formatTime(nums.reduce((a,b)=>a+b,0)/count);
+            if(mean) return (nums.reduce((a,b)=>a+b,0)/count/1000).toFixed(precision);
             nums.sort((a,b)=>a-b); nums.pop(); nums.shift();
-            return formatTime(nums.reduce((a,b)=>a+b,0)/nums.length);
+            return (nums.reduce((a,b)=>a+b,0)/nums.length/1000).toFixed(precision);
         }
 
         function startTimer() {
             startTime = Date.now(); isRunning = true;
             timerInterval = setInterval(()=> timerEl.innerText = formatTime(Date.now()-startTime), 10);
-            statusHint.innerText = "RUNNING..."; timerEl.classList.add('text-blue-600');
+            statusHint.innerText = "Timing..."; timerEl.classList.add('text-blue-600');
         }
 
         function stopTimer() {
             clearInterval(timerInterval);
             let elapsed = Date.now()-startTime;
-            solves.unshift({id:Date.now(), time:elapsed, scramble:currentScramble, event:currentEvent, penalty:null});
-            isRunning = isReady = false;
-            updateUI(); generateScramble();
-            statusHint.innerText = "HOLD TO READY"; timerEl.classList.remove('text-blue-600');
+            solves.unshift({
+                id: Date.now(), time: elapsed, scramble: currentScramble, event: currentEvent, 
+                sessionId: getCurrentSessionId(), penalty: null,
+                date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "")
+            });
+            isRunning = isReady = false; updateUI(); generateScramble();
+            statusHint.innerText = "Hold to Ready"; timerEl.classList.remove('text-blue-600'); saveData();
         }
 
         function togglePenalty(p) {
             if(!solves.length || isRunning) return;
-            // 현재 활성화된 종목의 마지막 기록에 적용
-            const sessionSolves = solves.filter(s => s.event === currentEvent);
-            if (!sessionSolves.length) return;
-
-            const targetSolve = sessionSolves[0];
+            const sid = getCurrentSessionId();
+            const currentList = solves.filter(s => s.event === currentEvent && s.sessionId === sid);
+            if (!currentList.length) return;
+            const targetSolve = currentList[0];
             targetSolve.penalty = (targetSolve.penalty===p)?null:p;
-            
-            // 만약 현재 화면에 표시된 시간이 방금 끝난 기록이라면 UI 즉시 갱신
             timerEl.innerText = targetSolve.penalty==='DNF'?'DNF':formatTime(targetSolve.penalty==='+2'?targetSolve.time+2000:targetSolve.time) + (targetSolve.penalty==='+2'?'+':'');
-            
-            updateUI(); 
-            updatePenaltyBtns(targetSolve);
+            updateUI(); updatePenaltyBtns(targetSolve); saveData();
         }
 
         function updatePenaltyBtns(s) {
@@ -528,48 +782,147 @@
             dnfBtn.className = `penalty-btn ${s?.penalty==='DNF'?'active-dnf':'inactive'}`;
         }
         function resetPenalty() { updatePenaltyBtns(null); }
-        function deleteSolve(id) { solves = solves.filter(s => s.id !== id); updateUI(); }
+        function deleteSolve(id) { solves = solves.filter(s => s.id !== id); updateUI(); saveData(); }
 
         function handleStart(e) {
             if(e && e.cancelable) e.preventDefault();
             if(isManualMode || isRunning) { if(isRunning) stopTimer(); return; }
             timerEl.classList.add('holding-status');
-            holdTimer = setTimeout(()=> { isReady=true; timerEl.classList.replace('holding-status','ready-to-start'); statusHint.innerText="READY!"; }, 200);
+            holdTimer = setTimeout(()=> { isReady=true; timerEl.classList.replace('holding-status','ready-to-start'); statusHint.innerText="Ready!"; }, 200);
         }
         function handleEnd(e) {
             if(e && e.cancelable) e.preventDefault();
             clearTimeout(holdTimer);
             if(!isRunning && isReady) startTimer();
-            else { timerEl.classList.remove('holding-status','ready-to-start'); isReady=false; statusHint.innerText="HOLD TO READY"; }
+            else { timerEl.classList.remove('holding-status','ready-to-start'); isReady=false; statusHint.innerText="Hold to Ready"; }
         }
 
+        window.openSessionModal = () => { document.getElementById('sessionOverlay').classList.add('active'); renderSessionList(); };
+        window.closeSessionModal = () => { document.getElementById('sessionOverlay').classList.remove('active'); document.getElementById('newSessionName').value = ""; editingSessionId = null; };
+
+        function renderSessionList() {
+            const listContainer = document.getElementById('sessionList');
+            const eventSessions = sessions[currentEvent] || [];
+            document.getElementById('sessionCountLabel').innerText = `${eventSessions.length}/10`;
+            listContainer.innerHTML = eventSessions.map(s => {
+                if (editingSessionId === s.id) {
+                    return `<div class="flex items-center gap-2"><input type="text" id="editSessionInput" value="${s.name}" class="flex-1 bg-white border border-blue-400 rounded-xl px-3 py-2.5 text-xs font-bold outline-none" autofocus onkeydown="if(event.key==='Enter') saveSessionName(${s.id})" onblur="saveSessionName(${s.id})"><button onclick="saveSessionName(${s.id})" class="p-2 text-blue-600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></div>`;
+                }
+                return `<div class="flex items-center gap-2 group"><div class="flex-1 flex items-center gap-2 p-1 rounded-xl border ${s.isActive ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-100 text-slate-500'} hover:bg-slate-100 transition-all"><button onclick="switchSession(${s.id})" class="flex-1 text-left p-2.5 text-xs font-bold truncate">${s.name}</button><button onclick="editSessionName(${s.id})" class="p-2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-blue-500 transition-all"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></div>${eventSessions.length > 1 ? `<button onclick="deleteSession(${s.id})" class="p-2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>` : ''}</div>`;
+            }).join('');
+            if (editingSessionId) document.getElementById('editSessionInput').focus();
+            document.getElementById('sessionCreateForm').classList.toggle('hidden', eventSessions.length >= 10);
+        }
+
+        window.editSessionName = (id) => { editingSessionId = id; renderSessionList(); };
+        window.saveSessionName = (id) => {
+            const input = document.getElementById('editSessionInput'); if (!input) return;
+            const newName = input.value.trim(); if (newName) { const s = sessions[currentEvent].find(x => x.id === id); if (s) s.name = newName; }
+            editingSessionId = null; renderSessionList(); updateUI(); saveData();
+        };
+
+        window.createNewSession = () => {
+            const nameInput = document.getElementById('newSessionName');
+            const name = nameInput.value.trim() || `Session ${sessions[currentEvent].length + 1}`;
+            if (sessions[currentEvent].length >= 10) return;
+            sessions[currentEvent].forEach(s => s.isActive = false);
+            sessions[currentEvent].push({ id: Date.now(), name: name, isActive: true });
+            nameInput.value = ""; renderSessionList(); updateUI(); saveData(); timerEl.innerText = (0).toFixed(precision); resetPenalty();
+        };
+
+        window.switchSession = (id) => {
+            sessions[currentEvent].forEach(s => s.isActive = (s.id === id));
+            renderSessionList(); updateUI(); saveData(); timerEl.innerText = (0).toFixed(precision); resetPenalty(); closeSessionModal();
+        };
+
+        window.deleteSession = (id) => {
+            const eventSessions = sessions[currentEvent]; if (!eventSessions || eventSessions.length <= 1) return;
+            const targetIdx = eventSessions.findIndex(s => s.id === id); if (targetIdx === -1) return;
+            const wasActive = eventSessions[targetIdx].isActive;
+            sessions[currentEvent] = eventSessions.filter(s => s.id !== id);
+            solves = solves.filter(s => !(s.event === currentEvent && s.sessionId === id));
+            if (wasActive && sessions[currentEvent].length > 0) sessions[currentEvent][0].isActive = true;
+            renderSessionList(); updateUI(); saveData();
+        };
+
+        window.openAvgShare = (type) => {
+            const sid = getCurrentSessionId();
+            const count = (type === 'primary') ? (isAo5Mode ? 5 : 3) : 12;
+            const filtered = solves.filter(s => s.event === currentEvent && s.sessionId === sid);
+            if (filtered.length < count) return;
+            const list = filtered.slice(0, count);
+            const avgValue = calculateAvg(filtered, count, (type === 'primary' && !isAo5Mode));
+            const dateStr = list[0].date || new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "");
+            document.getElementById('shareDate').innerText = `Date : ${dateStr}.`;
+            document.getElementById('shareLabel').innerText = (type === 'primary' && !isAo5Mode) ? `Mean of 3 :` : `Average of ${count} :`;
+            document.getElementById('shareAvg').innerText = avgValue;
+            const listContainer = document.getElementById('shareList');
+            listContainer.innerHTML = list.map((s, idx) => `<div class="flex flex-col p-3 bg-slate-50 rounded-xl border border-slate-100"><div class="flex items-center gap-3"><span class="text-[10px] font-bold text-slate-400 w-4">${count - idx}.</span><span class="font-bold text-slate-800 text-sm min-w-[50px]">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span><span class="text-[10px] text-slate-400 font-medium italic truncate flex-grow">${s.scramble}</span></div></div>`).reverse().join('');
+            document.getElementById('avgShareOverlay').classList.add('active');
+        };
+
+        window.openSingleShare = () => {
+            const s = solves.find(x => x.id === selectedSolveId); if (!s) return;
+            closeModal();
+            const dateStr = s.date || new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "");
+            document.getElementById('shareDate').innerText = `Date : ${dateStr}.`;
+            document.getElementById('shareLabel').innerText = `Single :`;
+            document.getElementById('shareAvg').innerText = s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time) + (s.penalty==='+2'?'+':'');
+            const listContainer = document.getElementById('shareList');
+            listContainer.innerHTML = `<div class="flex flex-col p-3 bg-slate-50 rounded-xl border border-slate-100"><div class="flex items-center gap-3"><span class="text-[10px] font-bold text-slate-400 w-4">1.</span><span class="font-bold text-slate-800 text-sm min-w-[50px]">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span><span class="text-[10px] text-slate-400 font-medium italic truncate flex-grow">${s.scramble}</span></div></div>`;
+            document.getElementById('avgShareOverlay').classList.add('active');
+        };
+
+        window.closeAvgShare = () => document.getElementById('avgShareOverlay').classList.remove('active');
+
+        window.copyShareText = () => {
+            const date = document.getElementById('shareDate').innerText;
+            const avgLabel = document.getElementById('shareLabel').innerText;
+            const avgVal = document.getElementById('shareAvg').innerText;
+            const isSingle = avgLabel.includes('Single');
+            let text = `[CubeTimer]\n\n${date}\n\n${avgLabel} ${avgVal}\n\n`;
+            if (isSingle) {
+                const s = solves.find(x => x.id === selectedSolveId);
+                if (s) text += `1. ${avgVal}   ${s.scramble}\n`;
+            } else {
+                const count = avgLabel.includes('5') ? 5 : (avgLabel.includes('3') ? 3 : 12);
+                const sid = getCurrentSessionId();
+                const filtered = solves.filter(s => s.event === currentEvent && s.sessionId === sid).slice(0, count);
+                filtered.reverse().forEach((s, i) => { text += `${i+1}. ${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}   ${s.scramble}\n`; });
+            }
+            const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select();
+            try {
+                document.execCommand('copy');
+                const btn = document.querySelector('[onclick="copyShareText()"]'); const original = btn.innerHTML;
+                btn.innerHTML = "Copied!"; btn.classList.add('bg-green-600');
+                setTimeout(() => { btn.innerHTML = original; btn.classList.remove('bg-green-600'); }, 2000);
+            } catch (err) { console.error('Copy failed', err); }
+            document.body.removeChild(textArea);
+        };
+
         window.addEventListener('keydown', e => {
+            if(editingSessionId) return; 
             if(e.code==='Space' && !e.repeat) { e.preventDefault(); handleStart(); }
             if(isManualMode && e.code==='Enter') {
                 let v = parseFloat(manualInput.value);
-                if(v>0) { solves.unshift({id:Date.now(), time:v*1000, scramble:currentScramble, event:currentEvent, penalty:null}); manualInput.value=""; updateUI(); generateScramble(); }
+                if(v>0) { 
+                    solves.unshift({
+                        id:Date.now(), time:v*1000, scramble:currentScramble, event:currentEvent, sessionId: getCurrentSessionId(), penalty:null,
+                        date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "")
+                    }); 
+                    manualInput.value=""; updateUI(); generateScramble(); saveData(); 
+                }
             }
         });
-        window.addEventListener('keyup', e => { if(e.code==='Space') handleEnd(); });
+        window.addEventListener('keyup', e => { if(e.code==='Space' && !editingSessionId) handleEnd(); });
 
         const interactiveArea = document.getElementById('timerInteractiveArea');
         interactiveArea.addEventListener('touchstart', handleStart, { passive: false });
         interactiveArea.addEventListener('touchend', handleEnd, { passive: false });
 
-        // 버튼들도 터치 이벤트를 지원하도록 명시적 등록 (클릭 이벤트와 중복 방지 필요 없음 - 터치 전용 로직이 아니므로)
-        // 단, touch-action: auto와 onclick을 조합하여 모바일 브라우저의 기본 클릭 처리를 활용
-
-        window.openSettings = () => { 
-            document.getElementById('settingsOverlay').classList.add('active'); 
-            setTimeout(()=>document.getElementById('settingsModal').classList.remove('scale-95','opacity-0'), 10); 
-        };
-        window.closeSettings = () => { 
-            document.getElementById('settingsModal').classList.add('scale-95','opacity-0'); 
-            setTimeout(()=>document.getElementById('settingsOverlay').classList.remove('active'), 200); 
-        };
-        window.handleOutsideSettingsClick = (e) => {
-            if(e.target === document.getElementById('settingsOverlay')) closeSettings();
-        };
+        window.openSettings = () => { document.getElementById('settingsOverlay').classList.add('active'); setTimeout(()=>document.getElementById('settingsModal').classList.remove('scale-95','opacity-0'), 10); };
+        window.closeSettings = () => { document.getElementById('settingsModal').classList.add('scale-95','opacity-0'); setTimeout(()=>document.getElementById('settingsOverlay').classList.remove('active'), 200); saveData(); };
+        window.handleOutsideSettingsClick = (e) => { if(e.target === document.getElementById('settingsOverlay')) closeSettings(); };
 
         window.showSolveDetails = (id) => {
             let s = solves.find(x=>x.id===id); if(!s) return;
@@ -582,24 +935,28 @@
         window.closeModal = () => document.getElementById('modalOverlay').classList.remove('active');
         window.useThisScramble = () => { let s=solves.find(x=>x.id===selectedSolveId); if(s){currentScramble=s.scramble; scrambleEl.innerText=currentScramble; closeModal();} };
 
-        document.getElementById('precisionToggle').onchange = e => { 
-            precision = e.target.checked?3:2; 
-            updateUI(); 
-            timerEl.innerText=(0).toFixed(precision); 
-        };
-        avgModeToggle.onchange = e => { 
-            isAo5Mode = e.target.checked; 
-            updateUI(); 
-        };
-        document.getElementById('manualEntryToggle').onchange = e => {
+        precisionToggle.onchange = e => { precision = e.target.checked?3:2; updateUI(); timerEl.innerText=(0).toFixed(precision); saveData(); };
+        avgModeToggle.onchange = e => { isAo5Mode = e.target.checked; updateUI(); saveData(); };
+        manualEntryToggle.onchange = e => {
             isManualMode = e.target.checked;
             timerEl.classList.toggle('hidden', isManualMode);
             manualInput.classList.toggle('hidden', !isManualMode);
             statusHint.innerText = isManualMode ? "TYPE TIME & ENTER" : "HOLD TO READY";
         };
-        document.getElementById('clearHistoryBtn').onclick = () => { if(confirm("Clear this event history?")) { solves=solves.filter(s=>s.event!==currentEvent); updateUI(); } };
 
-        initCube(3); generateScramble();
+        document.getElementById('clearHistoryBtn').onclick = () => { 
+            const sid = getCurrentSessionId();
+            const msg = `Clear all history for this session?`;
+            const customConfirm = document.createElement('div');
+            customConfirm.id = 'clearConfirmModal';
+            customConfirm.innerHTML = `<div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"><div class="bg-white rounded-2xl p-6 w-full max-w-xs shadow-2xl"><p class="text-sm font-bold text-slate-700 mb-6 text-center">${msg}</p><div class="flex gap-2"><button id="cancelClear" class="flex-1 py-3 text-slate-400 font-bold text-sm">Cancel</button><button id="confirmClear" class="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-sm">Clear All</button></div></div></div>`;
+            document.body.appendChild(customConfirm);
+            document.getElementById('cancelClear').onclick = () => { document.body.removeChild(document.getElementById('clearConfirmModal')); };
+            document.getElementById('confirmClear').onclick = () => { solves = solves.filter(s => !(s.event === currentEvent && s.sessionId === sid)); updateUI(); saveData(); document.body.removeChild(document.getElementById('clearConfirmModal')); timerEl.innerText = (0).toFixed(precision); resetPenalty(); };
+        };
+
+        loadData(); 
+        changeEvent(currentEvent);
     </script>
 </body>
 </html>
