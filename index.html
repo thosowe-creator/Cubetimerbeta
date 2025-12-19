@@ -963,10 +963,43 @@
                 if(currentEvent === 'pyra') conf.tips.forEach(t => { const r=Math.floor(Math.random()*3); if(r===1) res.push(t); else if(r===2) res.push(t+"'"); });
                 currentScramble = res.join(" ");
             } else {
-                let last=""; for (let i = 0; i < conf.len; i++) {
-                    let m; do { m = conf.moves[Math.floor(Math.random()*conf.moves.length)]; } while(m[0]===last[0]);
-                    res.push(m + suffixes[Math.floor(Math.random()*3)]); last=m;
+                let lastAxis = -1;
+                let secondLastAxis = -1;
+                let lastMoveBase = "";
+                
+                const getMoveAxis = (m) => {
+                    const c = m[0]; // First char usually defines axis for NxN standard notation
+                    if ("UD".includes(c)) return 0;
+                    if ("LR".includes(c)) return 1;
+                    if ("FB".includes(c)) return 2;
+                    return -1;
+                };
+
+                for (let i = 0; i < conf.len; i++) {
+                    let move, axis, base;
+                    while (true) {
+                        move = conf.moves[Math.floor(Math.random() * conf.moves.length)];
+                        axis = getMoveAxis(move);
+                        base = move[0]; 
+
+                        // 1. Same base check (e.g. R followed by R)
+                        if (base === lastMoveBase) continue;
+
+                        // 2. Axis check (Avoid 3 moves on same axis like F B F)
+                        // If current axis is same as last axis (e.g. F followed by B), 
+                        // check if the one before last was ALSO same axis.
+                        if (axis !== -1 && axis === lastAxis && axis === secondLastAxis) continue;
+                        
+                        break;
+                    }
+                    
+                    res.push(move + suffixes[Math.floor(Math.random() * 3)]);
+                    
+                    secondLastAxis = lastAxis;
+                    lastAxis = axis;
+                    lastMoveBase = base;
                 }
+
                 if (currentEvent === '333bf') {
                     const wideMoveCount = Math.floor(Math.random() * 2) + 1;
                     for (let i = 0; i < wideMoveCount; i++) {
@@ -1287,5 +1320,5 @@
     </script>
 </body>
 </html>
-</html>
+
 
