@@ -544,7 +544,6 @@
             const btStatusText = document.getElementById('btStatusText');
             const btIcon = document.getElementById('btModalIcon');
 
-            // [추가된 수정: 호환성 체크]
             if (!navigator.bluetooth) {
                 btStatusText.innerText = "Web Bluetooth is not supported in this browser.";
                 btStatusText.classList.add('text-red-400');
@@ -558,10 +557,7 @@
                 btIcon.classList.add('bt-pulse');
 
                 btDevice = await navigator.bluetooth.requestDevice({
-                    filters: [
-                        { namePrefix: 'GAN' },
-                        { services: ['0000fff0-0000-1000-8000-00805f9b34fb'] }
-                    ],
+                    filters: [{ namePrefix: 'GAN' }],
                     optionalServices: ['0000fff0-0000-1000-8000-00805f9b34fb']
                 });
 
@@ -1221,7 +1217,10 @@
         };
 
         window.addEventListener('keydown', e => {
-            if(editingSessionId || document.activeElement.tagName === 'INPUT') return; 
+            if(editingSessionId) return;
+            // [수동 입력 버그 수정]: Input 태그라도 Enter 키는 허용
+            if(document.activeElement.tagName === 'INPUT' && e.code !== 'Enter') return; 
+            
             if(e.code==='Space' && !e.repeat) { e.preventDefault(); handleStart(); }
             if(isManualMode && e.code==='Enter') {
                 let v = parseFloat(manualInput.value);
@@ -1288,3 +1287,5 @@
     </script>
 </body>
 </html>
+</html>
+
