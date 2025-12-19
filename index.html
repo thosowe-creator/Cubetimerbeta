@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Cube Timer (WCA Compliant)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
@@ -12,6 +12,7 @@
             background-color: #f8fafc;
             color: #334155;
             transition: background-color 0.3s ease;
+            touch-action: manipulation;
         }
         .timer-display {
             font-family: 'JetBrains+Mono', monospace;
@@ -101,12 +102,10 @@
         </div>
     </header>
 
-    <!-- Modal settings structure -->
     <div id="settingsOverlay" class="modal-overlay" onclick="handleOutsideSettingsClick(event)">
         <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 transform transition-all scale-95 opacity-0 duration-200" id="settingsModal" onclick="event.stopPropagation()">
             <h3 class="font-bold text-slate-700 text-lg mb-6">Settings</h3>
             <div class="space-y-4">
-                <!-- Average Type Toggle -->
                 <div class="flex items-center justify-between p-3 bg-slate-50 rounded-2xl">
                     <div><p class="text-xs font-bold text-slate-600">Average Mode</p></div>
                     <div class="flex items-center gap-2">
@@ -118,14 +117,10 @@
                         <span class="text-[9px] font-bold text-slate-400">Ao5</span>
                     </div>
                 </div>
-
-                <!-- Manual Entry Toggle -->
                 <div class="flex items-center justify-between p-3 bg-blue-50/50 rounded-2xl border border-blue-100">
                     <div><p class="text-xs font-bold text-blue-600">Manual Entry</p></div>
                     <label class="switch"><input type="checkbox" id="manualEntryToggle"><span class="slider"></span></label>
                 </div>
-
-                <!-- Precision Toggle -->
                 <div class="flex items-center justify-between p-3 bg-slate-50 rounded-2xl">
                     <div><p class="text-xs font-bold text-slate-600">Precision</p></div>
                     <div class="flex items-center gap-2">
@@ -139,7 +134,6 @@
         </div>
     </div>
 
-    <!-- Solve Details Modal -->
     <div id="modalOverlay" class="modal-overlay" onclick="closeModal(event)">
         <div class="bg-white rounded-3xl w-full max-w-md shadow-2xl p-6" onclick="event.stopPropagation()">
             <h4 class="font-bold text-slate-400 uppercase text-[10px] tracking-widest mb-4">Solve Details</h4>
@@ -156,14 +150,12 @@
     <main class="flex flex-col md:flex-row p-4 gap-4 flex-grow overflow-hidden">
         <div class="flex-grow flex flex-col items-center justify-between p-2 md:p-4 h-full order-2 md:order-1 overflow-y-auto custom-scroll">
             <div class="w-full max-w-4xl space-y-4">
-                
                 <div class="flex flex-col items-center gap-4">
                     <div class="flex gap-1 p-1 bg-slate-200/50 rounded-full border border-slate-200">
                         <button onclick="switchCategory('standard')" id="cat-standard" class="category-btn active px-5 py-2 text-xs font-bold rounded-full">Standard</button>
                         <button onclick="switchCategory('nonstandard')" id="cat-nonstandard" class="category-btn px-5 py-2 text-xs font-bold rounded-full">Non-Standard</button>
                         <button onclick="switchCategory('pbq')" id="cat-pbq" class="category-btn px-5 py-2 text-xs font-bold rounded-full">PBQ</button>
                     </div>
-
                     <div class="bg-white p-1 rounded-2xl shadow-sm border border-slate-100 flex overflow-x-auto max-w-full custom-scroll">
                         <div id="group-standard" class="flex gap-1">
                             <button onclick="changeEvent('333')" class="event-tab active px-4 py-2 rounded-xl text-xs font-bold" id="tab-333">3x3</button>
@@ -186,7 +178,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="text-center pt-2">
                     <h2 class="text-slate-300 uppercase tracking-[0.2em] text-[9px] font-bold mb-3">Scramble</h2>
                     <div class="scramble-box p-4 md:p-6 min-h-[100px] flex flex-col items-center justify-center">
@@ -195,7 +186,6 @@
                 </div>
             </div>
 
-            <!-- Modified container: scope interaction only to this area -->
             <div id="timerContainer" class="flex flex-col items-center justify-center flex-grow w-full select-none py-4">
                 <div id="timerInteractiveArea" class="flex flex-col items-center cursor-pointer p-8 rounded-3xl transition-colors hover:bg-slate-100/30">
                     <div id="timerDisplayContainer" class="w-full flex justify-center">
@@ -507,7 +497,8 @@
         function resetPenalty() { updatePenaltyBtns(null); }
         function deleteSolve(id) { solves = solves.filter(s => s.id !== id); updateUI(); }
 
-        function handleStart() {
+        function handleStart(e) {
+            if(e) e.preventDefault();
             if(isManualMode || isRunning) { if(isRunning) stopTimer(); return; }
             timerEl.classList.add('holding-status');
             holdTimer = setTimeout(()=> { isReady=true; timerEl.classList.replace('holding-status','ready-to-start'); statusHint.innerText="READY!"; }, 200);
@@ -527,11 +518,12 @@
         });
         window.addEventListener('keyup', e => { if(e.code==='Space') handleEnd(); });
 
-        // Scoped interaction only to timerInteractiveArea
-        document.getElementById('timerInteractiveArea').onmousedown = e => { if(e.button===0) handleStart(); };
+        const interactiveArea = document.getElementById('timerInteractiveArea');
+        interactiveArea.onmousedown = e => { if(e.button===0) handleStart(e); };
+        interactiveArea.ontouchstart = e => handleStart(e);
         window.onmouseup = () => handleEnd();
+        window.ontouchend = () => handleEnd();
 
-        // Modal Controls
         window.openSettings = () => { 
             document.getElementById('settingsOverlay').classList.add('active'); 
             setTimeout(()=>document.getElementById('settingsModal').classList.remove('scale-95','opacity-0'), 10); 
@@ -555,7 +547,6 @@
         window.closeModal = () => document.getElementById('modalOverlay').classList.remove('active');
         window.useThisScramble = () => { let s=solves.find(x=>x.id===selectedSolveId); if(s){currentScramble=s.scramble; scrambleEl.innerText=currentScramble; closeModal();} };
 
-        // Settings toggles
         document.getElementById('precisionToggle').onchange = e => { 
             precision = e.target.checked?3:2; 
             updateUI(); 
