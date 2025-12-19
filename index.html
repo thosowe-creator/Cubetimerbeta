@@ -595,68 +595,93 @@
                 let service = null;
                 
                 try {
+                    log("Trying Long UUID...");
                     service = await server.getPrimaryService(GAN_SERVICE_LONG);
                     log("Found Long UUID!");
                 } catch (e) {
+                    log("Long UUID failed. Trying Short...");
                     try {
                         service = await server.getPrimaryService(GAN_SERVICE_SHORT);
                         log("Found Short UUID!");
                     } catch (e2) {
+                        log("Short UUID failed.");
                         log("Listing all services...");
                         const services = await server.getPrimaryServices();
+                        log(`Found ${services.length} services.`);
                         service = services.find(s => s.uuid.indexOf('fff0') !== -1 || s.uuid.indexOf('FFF0') !== -1);
                     }
                 }
 
                 if (!service) {
-                    throw new Error("GAN Service (FFF0) not found.");
+                    throw new Error("GAN Service (FFF0) not found on device.");
                 }
 
                 log(`Service OK: ${service.uuid}`);
-                log("Looking for FFF1...");
                 
-                // [수정 핵심] 다른 거 보지 말고 무조건 FFF1을 찾는다.
+                // 특성(Characteristic) 전수 조사 및 자동 선택
+                log("Listing characteristics...");
                 const characteristics = await service.getCharacteristics();
-                let targetChar = characteristics.find(c => c.uuid.indexOf('fff1') !== -1 || c.uuid.indexOf('FFF1') !== -1);
-                
-                // 만약 FFF1이 진짜 없다면 목록의 첫 번째라도 잡는다 (최후의 수단)
-                if (!targetChar) {
-                    log("FFF1 not found! Using first char.");
-                    targetChar = characteristics[0];
-                }
+                log(`Found ${characteristics.length} chars.`);
 
-                btCharacteristic = targetChar;
-                log(`Target: ${btCharacteristic.uuid.substring(0,8)}...`);
+                characteristics.forEach(c => {
+                    log(`Char: ${c.uuid.substring(0,8)}... Props: R=${c.properties.read}, W=${c.properties.write}, N=${c.properties.notify}`);
+                });
 
+                let targetChar = null;
                 let usePolling = false;
 
-                // 1. 알림(Notify) 시도
-                try {
-                    await btCharacteristic.startNotifications();
-                    btCharacteristic.addEventListener('characteristicvaluechanged', handleGanBTData);
-                    log("Notifications started!");
-                } catch (notifyErr) {
-                    // 여기서 'Not supported'가 뜨면 바로 Polling으로 넘어감
-                    log(`Notify failed (${notifyErr.name}).`);
-                    log("Switching to FORCE POLLING.");
+                // 전략 1: Notify 속성이 있는 특성을 우선적으로 찾음
+                // FFF1을 우선적으로 찾되, 없으면 Notify 되는 놈을 찾음
+                const notifyChar = characteristics.find(c => c.uuid.indexOf('fff1') !== -1 && c.properties.notify) 
+                                || characteristics.find(c => c.properties.notify);
+                
+                if (notifyChar) {
+                    log(`Found Notify Char: ${notifyChar.uuid.substring(0,8)}...`);
+                    try {
+                        await notifyChar.startNotifications();
+                        notifyChar.addEventListener('characteristicvaluechanged', handleGanBTData);
+                        btCharacteristic = notifyChar;
+                        log("Notifications started successfully!");
+                    } catch (notifyErr) {
+                        log(`Notify failed: ${notifyErr.message}`);
+                        log("Switching to Polling strategy...");
+                        usePolling = true; // Notify 실패 시 폴링으로 전환
+                    }
+                } else {
+                    log("No Notify Char found. Switching to Polling strategy...");
                     usePolling = true;
                 }
 
-                // 2. 강제 읽기(Polling) 시작
+                // 전략 2: Notify가 안되면 Read 속성이 있는 특성을 찾아 폴링(Polling)
                 if (usePolling) {
+                    // FFF1을 우선적으로 찾되, 없으면 Read 되는 놈을 찾음
+                    const readChar = characteristics.find(c => c.uuid.indexOf('fff1') !== -1 && c.properties.read) 
+                                  || characteristics.find(c => c.properties.read);
+
+                    if (!readChar) {
+                        throw new Error("No readable characteristic found!");
+                    }
+                    log(`Found Read Char: ${readChar.uuid.substring(0,8)}...`);
+                    btCharacteristic = readChar;
+                    
                     log("Starting Polling (50ms)...");
                     if (btPollInterval) clearInterval(btPollInterval);
                     btPollInterval = setInterval(async () => {
                         if (btDevice && btDevice.gatt.connected) {
                             try {
                                 const val = await btCharacteristic.readValue();
-                                // 이벤트를 흉내내서 데이터 처리 함수 호출
+                                // 이벤트를 흉내내서 핸들러 호출
                                 handleGanBTData({ target: { value: val } }); 
                             } catch (e) {
-                                // 읽기 에러는 무시 (연결 불안정 등)
+                                // 읽기 에러 로깅 (스로틀링 적용)
+                                const logEl = document.getElementById('btDebugLog');
+                                if (logEl && (!logEl.lastErrTime || Date.now() - logEl.lastErrTime > 2000)) {
+                                     log(`Polling Error: ${e.message}`);
+                                     logEl.lastErrTime = Date.now();
+                                }
                             }
                         }
-                    }, 50);
+                    }, 50); // Polling 간격을 더 짧게 조정 (반응성 향상)
                 }
 
                 log("Success! Ready.");
@@ -670,7 +695,7 @@
                 btStatusText.innerText = "Timer Connected & Ready";
                 btIcon.classList.remove('bt-pulse');
                 
-                // 디버깅을 위해 로그창 유지
+                // [수정] 성공 후에도 로그창 유지 (데이터 확인용)
                 // btDebugLog.classList.add('hidden'); 
                 
                 statusHint.innerText = "Timer Ready (BT)";
