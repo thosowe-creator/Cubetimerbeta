@@ -141,7 +141,6 @@
         .tool-option:hover { background: #f1f5f9; color: #3b82f6; }
         .tool-option.active { color: #3b82f6; background: #eff6ff; }
 
-        /* Bluetooth Specific Styles */
         #btStatusIcon.connected { color: #3b82f6; }
         #btStatusIcon.disconnected { color: #94a3b8; }
         .bt-pulse { animation: pulse 2s infinite; }
@@ -162,19 +161,18 @@
             <h1 class="font-bold text-slate-700 tracking-tight">CubeTimer</h1>
         </div>
         <div class="flex items-center gap-2 md:gap-4">
-            <!-- Bluetooth Connection Button -->
             <button onclick="openBTModal()" id="btToggleBtn" class="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-500 transition-all flex items-center justify-center">
                 <svg id="btStatusIcon" class="disconnected" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
             </button>
 
             <div class="flex items-center bg-slate-100 rounded-xl p-1">
                 <button onclick="exportData()" class="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-tighter text-slate-500 hover:text-blue-600 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                     <span>Backup</span>
                 </button>
                 <div class="w-px h-3 bg-slate-300"></div>
                 <button onclick="triggerImport()" class="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-tighter text-slate-500 hover:text-purple-600 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
                     <span>Restore</span>
                 </button>
                 <input type="file" id="importInput" class="hidden" accept=".json" onchange="importData(event)">
@@ -220,7 +218,7 @@
         </div>
     </div>
 
-    <!-- ... (Rest of existing modals: sessionOverlay, settingsOverlay, avgShareOverlay, modalOverlay remains unchanged) ... -->
+    <!-- Sessions Modal -->
     <div id="sessionOverlay" class="modal-overlay" onclick="closeSessionModal()">
         <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center mb-6">
@@ -239,6 +237,24 @@
         </div>
     </div>
 
+    <!-- Multi-Blind Scramble Modal -->
+    <div id="mbfScrambleOverlay" class="modal-overlay" onclick="closeMbfScrambleModal()">
+        <div class="bg-white rounded-3xl w-full max-w-2xl shadow-2xl p-6 md:p-8 flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-slate-700 text-lg">Multi-Blind Scrambles</h3>
+                <span id="mbfCubeCountDisplay" class="text-[10px] font-bold bg-blue-100 text-blue-600 px-3 py-1 rounded-full uppercase tracking-tighter">10 Cubes</span>
+            </div>
+            <div id="mbfScrambleList" class="flex-grow overflow-y-auto space-y-4 custom-scroll pr-2 mb-6 text-sm">
+                <!-- Scrambles go here -->
+            </div>
+            <div class="flex gap-3">
+                <button onclick="copyMbfText()" class="flex-1 py-3.5 bg-slate-800 text-white font-bold rounded-xl text-sm">Copy All</button>
+                <button onclick="closeMbfScrambleModal()" class="flex-1 py-3.5 bg-slate-100 text-slate-600 font-bold rounded-xl text-sm">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
     <div id="settingsOverlay" class="modal-overlay" onclick="handleOutsideSettingsClick(event)">
         <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 transform transition-all scale-95 opacity-0 duration-200" id="settingsModal" onclick="event.stopPropagation()">
             <h3 class="font-bold text-slate-700 text-lg mb-6">Settings</h3>
@@ -312,7 +328,6 @@
     </div>
 
     <main class="main-container flex flex-col md:flex-row p-4 gap-6 flex-grow overflow-hidden">
-        
         <div class="flex-grow flex flex-col items-center justify-between h-full order-1">
             <div class="w-full space-y-6">
                 <div class="flex flex-col items-center gap-4">
@@ -338,16 +353,28 @@
                             <button onclick="changeEvent('skewb')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-skewb">Skewb</button>
                             <button onclick="changeEvent('sq1')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-sq1">Square-1</button>
                         </div>
-                        <div id="group-blind" class="hidden flex items-center px-6 py-2">
-                            <span class="text-xs text-slate-400 font-medium italic">Blind events coming soon...</span>
+                        <div id="group-blind" class="hidden flex gap-1">
+                            <button onclick="changeEvent('333bf')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-333bf">3BLD</button>
+                            <button onclick="changeEvent('444bf')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-444bf">4BLD</button>
+                            <button onclick="changeEvent('555bf')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-555bf">5BLD</button>
+                            <button onclick="changeEvent('333mbf')" class="event-tab px-5 py-2.5 rounded-xl text-xs font-bold" id="tab-333mbf">Multi-BLD</button>
                         </div>
                     </div>
                 </div>
 
                 <div class="text-center w-full">
                     <h2 class="text-slate-300 uppercase tracking-[0.2em] text-[10px] font-bold mb-3">Scramble</h2>
-                    <div class="scramble-box p-6 md:p-8 min-h-[120px] flex flex-col items-center justify-center border border-slate-100">
+                    <div id="scrambleBox" class="scramble-box p-6 md:p-8 min-h-[120px] flex flex-col items-center justify-center border border-slate-100">
                         <div id="scramble" class="text-base md:text-xl font-bold text-slate-600 whitespace-pre-wrap text-center max-w-5xl leading-relaxed">Generating...</div>
+                        
+                        <!-- Multi-Blind Input Area -->
+                        <div id="mbfInputArea" class="hidden flex flex-col items-center gap-4 w-full">
+                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Enter number of cubes</p>
+                            <div class="flex gap-2 w-full max-w-xs">
+                                <input type="number" id="mbfCubeInput" min="2" max="100" placeholder="e.g. 10" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-lg font-bold text-center outline-none focus:border-blue-400 transition-all">
+                                <button onclick="generateMbfScrambles()" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold active:scale-95 transition-all shadow-md">Go</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -457,13 +484,15 @@
         let editingSessionId = null; 
         let activeTool = 'scramble';
 
-        // Bluetooth Variables
         let btDevice = null;
         let btCharacteristic = null;
         let isBtConnected = false;
+        let lastBtState = null;
 
         const timerEl = document.getElementById('timer');
         const scrambleEl = document.getElementById('scramble');
+        const mbfInputArea = document.getElementById('mbfInputArea');
+        const mbfCubeInput = document.getElementById('mbfCubeInput');
         const manualInput = document.getElementById('manualInput');
         const historyList = document.getElementById('historyList');
         const solveCountEl = document.getElementById('solveCount');
@@ -493,14 +522,20 @@
             'pyra': { moves: ["U","L","R","B"], len: 10, tips: ["u","l","r","b"], cat: 'nonstandard' },
             'clock': { len: 18, cat: 'nonstandard' },
             'skewb': { moves: ["U","L","R","B"], len: 10, cat: 'nonstandard' },
-            'sq1': { len: 12, cat: 'nonstandard' }
+            'sq1': { len: 12, cat: 'nonstandard' },
+            '333bf': { moves: ["U","D","L","R","F","B"], len: 21, n: 3, cat: 'blind' },
+            '444bf': { moves: ["U","D","L","R","F","B","Uw","Rw","Fw"], len: 44, n: 4, cat: 'blind' },
+            '555bf': { moves: ["U","D","L","R","F","B","Uw","Dw","Lw","Rw","Fw","Bw"], len: 60, n: 5, cat: 'blind' },
+            '333mbf': { moves: ["U","D","L","R","F","B"], len: 21, n: 3, cat: 'blind' }
         };
 
         const suffixes = ["", "'", "2"];
+        const orientations = ["x", "x'", "x2", "y", "y'", "y2", "z", "z'", "z2"];
+        const wideMoves = ["Uw", "Dw", "Lw", "Rw", "Fw", "Bw"]; 
+
         let cubeState = {};
         const COLORS = { U: '#FFFFFF', D: '#FFD500', L: '#FF8C00', R: '#DC2626', F: '#16A34A', B: '#2563EB' };
 
-        // Bluetooth Functions
         window.openBTModal = () => document.getElementById('btOverlay').classList.add('active');
         window.closeBTModal = () => document.getElementById('btOverlay').classList.remove('active');
 
@@ -512,11 +547,14 @@
             try {
                 btBtn.disabled = true;
                 btBtn.innerText = "Searching...";
-                btStatusText.innerText = "Please select your GAN Timer";
+                btStatusText.innerText = "Select your GAN Timer in the popup";
                 btIcon.classList.add('bt-pulse');
 
                 btDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: 'GAN' }],
+                    filters: [
+                        { namePrefix: 'GAN' },
+                        { services: ['0000fff0-0000-1000-8000-00805f9b34fb'] }
+                    ],
                     optionalServices: ['0000fff0-0000-1000-8000-00805f9b34fb']
                 });
 
@@ -527,7 +565,6 @@
                 await btCharacteristic.startNotifications();
                 btCharacteristic.addEventListener('characteristicvaluechanged', handleGanBTData);
 
-                // UI Update for Connected State
                 isBtConnected = true;
                 document.getElementById('btStatusIcon').classList.replace('disconnected', 'connected');
                 document.getElementById('btInfoPanel').classList.remove('hidden');
@@ -537,11 +574,12 @@
                 btStatusText.innerText = "Timer Connected & Ready";
                 btIcon.classList.remove('bt-pulse');
                 
+                statusHint.innerText = "Timer Ready (BT)";
                 btDevice.addEventListener('gattserverdisconnected', onBTDisconnected);
 
             } catch (error) {
-                console.error("Bluetooth Error:", error);
-                btStatusText.innerText = "Connection Failed. Try again.";
+                console.error("Bluetooth Connection Error:", error);
+                btStatusText.innerText = error.name === 'NotFoundError' ? "No device selected." : "Connection failed.";
                 btBtn.disabled = false;
                 btBtn.innerText = "Connect Timer";
                 btIcon.classList.remove('bt-pulse');
@@ -550,27 +588,34 @@
 
         function handleGanBTData(event) {
             const data = event.target.value;
-            // GAN Smart Timer Protocol Overview (Basic parsing)
-            // byte[0] usually represents state
-            // byte[4-7] often represents time in ms
             const state = data.getUint8(0);
             
-            // Logic based on state:
-            // 1: Idle, 2: Ready(Hands on), 3: Running, 4: Stopped
-            if (state === 2) { 
-                if (!isRunning) {
+            if (state !== lastBtState) {
+                if (state === 2) { 
                     isReady = true;
                     timerEl.classList.add('ready-to-start');
-                    statusHint.innerText = "READY (Bluetooth)";
+                    statusHint.innerText = "READY!";
+                } else if (state === 3) { 
+                    if (!isRunning) {
+                        startTime = Date.now();
+                        isRunning = true;
+                        timerInterval = setInterval(() => {
+                            timerEl.innerText = formatTime(Date.now() - startTime);
+                        }, 10);
+                        timerEl.classList.add('text-blue-600');
+                        statusHint.innerText = "Timing...";
+                    }
+                } else if (state === 4) { 
+                    if (isRunning) {
+                        const finalMs = data.getUint32(4, true); 
+                        stopTimer(finalMs);
+                    }
+                } else if (state === 1) { 
+                    isReady = false;
+                    timerEl.classList.remove('ready-to-start', 'holding-status');
+                    statusHint.innerText = "Ready (Bluetooth)";
                 }
-            } else if (state === 3) {
-                if (!isRunning) startTimer();
-            } else if (state === 4) {
-                if (isRunning) {
-                    // Extract final time from packet if available for precision
-                    // let finalTime = data.getUint32(4, true); 
-                    stopTimer();
-                }
+                lastBtState = state;
             }
         }
 
@@ -582,6 +627,7 @@
 
         function onBTDisconnected() {
             isBtConnected = false;
+            lastBtState = null;
             document.getElementById('btStatusIcon').classList.replace('connected', 'disconnected');
             document.getElementById('btInfoPanel').classList.add('hidden');
             document.getElementById('btDisconnectBtn').classList.add('hidden');
@@ -590,9 +636,34 @@
             btBtn.disabled = false;
             btBtn.innerText = "Connect Timer";
             document.getElementById('btStatusText').innerText = "Timer Disconnected";
+            statusHint.innerText = "Hold to Ready";
         }
 
-        // Existing Core Logic
+        function stopTimer(forcedTime = null) {
+            clearInterval(timerInterval);
+            let elapsed = forcedTime !== null ? forcedTime : (Date.now() - startTime);
+            
+            if (elapsed > 10) {
+                solves.unshift({
+                    id: Date.now(), 
+                    time: elapsed, 
+                    scramble: currentScramble, 
+                    event: currentEvent, 
+                    sessionId: getCurrentSessionId(), 
+                    penalty: null,
+                    date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "")
+                });
+                timerEl.innerText = formatTime(elapsed);
+            }
+            
+            isRunning = isReady = false; 
+            updateUI(); 
+            generateScramble();
+            statusHint.innerText = isBtConnected ? "Ready (Bluetooth)" : "Hold to Ready"; 
+            timerEl.classList.remove('text-blue-600', 'ready-to-start'); 
+            saveData();
+        }
+
         function exportData() {
             const data = {
                 solves: solves,
@@ -726,8 +797,15 @@
 
         function drawCube() {
             const n = cubeState.n;
-            if(!n) { visualizerCanvas.style.display='none'; noVisualizerMsg.classList.remove('hidden'); return; }
-            visualizerCanvas.style.display='block'; noVisualizerMsg.classList.add('hidden');
+            if(!n || configs[currentEvent]?.cat === 'blind') { 
+                visualizerCanvas.style.display='none'; 
+                noVisualizerMsg.innerText = configs[currentEvent]?.cat === 'blind' ? "Scramble images disabled for Blind" : "Visualizer for standard cubes only";
+                noVisualizerMsg.classList.remove('hidden'); 
+                return; 
+            }
+            
+            visualizerCanvas.style.display='block'; 
+            noVisualizerMsg.classList.add('hidden');
             const ctx = visualizerCanvas.getContext('2d');
             const faceS = 55, tileS = faceS/n, gap = 4;
             ctx.clearRect(0,0,260,190);
@@ -751,7 +829,8 @@
 
         window.selectTool = (tool) => {
             activeTool = tool;
-            document.getElementById('toolLabel').innerText = tool === 'scramble' ? 'Scramble Image' : 'Graph (Trends)';
+            const isBlind = configs[currentEvent]?.cat === 'blind';
+            document.getElementById('toolLabel').innerText = isBlind ? 'N/A (Blind)' : (tool === 'scramble' ? 'Scramble Image' : 'Graph (Trends)');
             document.getElementById('visualizerWrapper').classList.toggle('hidden', tool !== 'scramble');
             document.getElementById('graphWrapper').classList.toggle('hidden', tool !== 'graph');
             document.querySelectorAll('.tool-option').forEach(opt => opt.classList.remove('active'));
@@ -804,16 +883,57 @@
         function changeEvent(e) {
             if(isRunning) return;
             currentEvent = e;
+            const conf = configs[e];
             initSessionIfNeeded(e);
             document.querySelectorAll('.event-tab').forEach(t => t.classList.remove('active'));
             const activeTab = document.getElementById(`tab-${e}`); if (activeTab) activeTab.classList.add('active');
-            if (e === '666' || e === '777') { isAo5Mode = false; avgModeToggle.checked = false; } 
-            else { isAo5Mode = true; avgModeToggle.checked = true; }
-            generateScramble(); updateUI(); timerEl.innerText = (0).toFixed(precision); saveData();
+            
+            if (conf.cat === 'blind') {
+                activeTool = 'graph'; 
+                selectTool('graph');
+            } else {
+                if (activeTool === 'graph') selectTool('graph');
+                else selectTool('scramble');
+            }
+
+            if (['666', '777', '333bf', '444bf', '555bf', '333mbf'].includes(e)) { 
+                isAo5Mode = false; avgModeToggle.checked = false; 
+            } else { 
+                isAo5Mode = true; avgModeToggle.checked = true; 
+            }
+
+            // Multi-Blind UI specific
+            if (currentEvent === '333mbf') {
+                scrambleEl.classList.add('hidden');
+                mbfInputArea.classList.remove('hidden');
+            } else {
+                scrambleEl.classList.remove('hidden');
+                mbfInputArea.classList.add('hidden');
+                generateScramble(); 
+            }
+            
+            updateUI(); timerEl.innerText = (0).toFixed(precision); saveData();
+        }
+
+        function generate3bldScrambleText() {
+            const conf = configs['333bf'];
+            let res = [];
+            let last = "";
+            for (let i = 0; i < conf.len; i++) {
+                let m; do { m = conf.moves[Math.floor(Math.random() * conf.moves.length)]; } while (m[0] === last[0]);
+                res.push(m + suffixes[Math.floor(Math.random() * 3)]); last = m;
+            }
+            const wideMoveCount = Math.floor(Math.random() * 2) + 1;
+            for (let i = 0; i < wideMoveCount; i++) {
+                const wm = wideMoves[Math.floor(Math.random() * wideMoves.length)];
+                const suf = suffixes[Math.floor(Math.random() * 3)];
+                res.push(wm + suf);
+            }
+            return res.join(" ");
         }
 
         function generateScramble() {
-            const conf = configs[currentEvent]; if (!conf) return;
+            const conf = configs[currentEvent]; if (!conf || currentEvent === '333mbf') return;
             let res = [];
             if (currentEvent === 'minx') {
                 for (let i = 0; i < 7; i++) {
@@ -832,7 +952,7 @@
                     if (u===0 && d===0) { i--; continue; } res.push(`(${u},${d})`);
                 }
                 currentScramble = res.join(" / ");
-            } else if (currentEvent === 'pyra' || currentEvent === 'skewb') {
+            } else if (['pyra', 'skewb'].includes(currentEvent)) {
                 let last=""; for (let i = 0; i < conf.len; i++) {
                     let m; do { m = conf.moves[Math.floor(Math.random()*conf.moves.length)]; } while(m===last);
                     res.push(m + (Math.random()<0.5?"'":"")); last=m;
@@ -844,14 +964,71 @@
                     let m; do { m = conf.moves[Math.floor(Math.random()*conf.moves.length)]; } while(m[0]===last[0]);
                     res.push(m + suffixes[Math.floor(Math.random()*3)]); last=m;
                 }
+                if (currentEvent === '333bf') {
+                    const wideMoveCount = Math.floor(Math.random() * 2) + 1;
+                    for (let i = 0; i < wideMoveCount; i++) {
+                        const wm = wideMoves[Math.floor(Math.random() * wideMoves.length)];
+                        const suf = suffixes[Math.floor(Math.random() * 3)];
+                        res.push(wm + suf);
+                    }
+                } else if (conf.cat === 'blind') {
+                    const extra = orientations[Math.floor(Math.random()*orientations.length)];
+                    res.push(extra);
+                    if (Math.random() > 0.5) res.push(orientations[Math.floor(Math.random()*orientations.length)]);
+                }
                 currentScramble = res.join(" ");
             }
             scrambleEl.innerText = currentScramble;
-            if (conf.n) { initCube(conf.n); currentScramble.split(/\s+/).filter(s=>s && s!=='y2').forEach(applyMove); drawCube(); } 
-            else { cubeState={}; drawCube(); }
+            if (conf.n) { 
+                initCube(conf.n); 
+                currentScramble.split(/\s+/).filter(s => s && !orientations.includes(s) && s!=='y2').forEach(applyMove); 
+                drawCube(); 
+            } else { 
+                cubeState={}; drawCube(); 
+            }
             resetPenalty();
             if (activeTool === 'graph') renderHistoryGraph();
         }
+
+        window.generateMbfScrambles = () => {
+            const count = parseInt(mbfCubeInput.value);
+            if (!count || count < 2 || count > 100) return;
+            
+            const listContainer = document.getElementById('mbfScrambleList');
+            document.getElementById('mbfCubeCountDisplay').innerText = `${count} Cubes`;
+            listContainer.innerHTML = "";
+            
+            for (let i = 1; i <= count; i++) {
+                const scr = generate3bldScrambleText();
+                listContainer.innerHTML += `
+                    <div class="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="w-6 h-6 flex items-center justify-center bg-blue-600 text-white rounded-full text-[10px] font-bold">#${i}</span>
+                            <span class="text-[10px] font-black uppercase text-slate-400">Scramble</span>
+                        </div>
+                        <p class="font-bold text-slate-600 leading-relaxed scramble-text">${scr}</p>
+                    </div>
+                `;
+            }
+            document.getElementById('mbfScrambleOverlay').classList.add('active');
+            currentScramble = `Multi-Blind (${count} Cubes Attempt)`;
+        };
+
+        window.closeMbfScrambleModal = () => document.getElementById('mbfScrambleOverlay').classList.remove('active');
+        
+        window.copyMbfText = () => {
+            const texts = Array.from(document.querySelectorAll('.scramble-text')).map((el, i) => `${i+1}. ${el.innerText}`).join('\n\n');
+            const countText = document.getElementById('mbfCubeCountDisplay').innerText;
+            const fullText = `[CubeTimer] Multi-Blind Scrambles (${countText})\n\n${texts}`;
+            
+            const textArea = document.createElement("textarea"); textArea.value = fullText; document.body.appendChild(textArea); textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            
+            const btn = document.querySelector('[onclick="copyMbfText()"]');
+            const original = btn.innerText; btn.innerText = "Copied!";
+            setTimeout(() => btn.innerText = original, 2000);
+        };
 
         function formatTime(ms) {
             let s = ms/1000; if(s < 60) return s.toFixed(precision);
@@ -900,19 +1077,6 @@
             statusHint.innerText = "Timing..."; timerEl.classList.add('text-blue-600');
         }
 
-        function stopTimer() {
-            clearInterval(timerInterval);
-            let elapsed = Date.now()-startTime;
-            solves.unshift({
-                id: Date.now(), time: elapsed, scramble: currentScramble, event: currentEvent, 
-                sessionId: getCurrentSessionId(), penalty: null,
-                date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "")
-            });
-            isRunning = isReady = false; updateUI(); generateScramble();
-            statusHint.innerText = isBtConnected ? "Ready (Bluetooth)" : "Hold to Ready"; 
-            timerEl.classList.remove('text-blue-600', 'ready-to-start'); saveData();
-        }
-
         function togglePenalty(p) {
             if(!solves.length || isRunning) return;
             const sid = getCurrentSessionId();
@@ -932,14 +1096,14 @@
         function deleteSolve(id) { solves = solves.filter(s => s.id !== id); updateUI(); saveData(); }
 
         function handleStart(e) {
-            if (isBtConnected) return; // Ignore manual start when BT is connected
+            if (isBtConnected) return; 
             if(e && e.cancelable) e.preventDefault();
             if(isManualMode || isRunning) { if(isRunning) stopTimer(); return; }
             timerEl.classList.add('holding-status');
             holdTimer = setTimeout(()=> { isReady=true; timerEl.classList.replace('holding-status','ready-to-start'); statusHint.innerText="Ready!"; }, 200);
         }
         function handleEnd(e) {
-            if (isBtConnected) return; // Ignore manual end when BT is connected
+            if (isBtConnected) return; 
             if(e && e.cancelable) e.preventDefault();
             clearTimeout(holdTimer);
             if(!isRunning && isReady) startTimer();
@@ -1050,7 +1214,7 @@
         };
 
         window.addEventListener('keydown', e => {
-            if(editingSessionId) return; 
+            if(editingSessionId || document.activeElement.tagName === 'INPUT') return; 
             if(e.code==='Space' && !e.repeat) { e.preventDefault(); handleStart(); }
             if(isManualMode && e.code==='Enter') {
                 let v = parseFloat(manualInput.value);
@@ -1101,7 +1265,7 @@
             customConfirm.innerHTML = `<div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"><div class="bg-white rounded-2xl p-6 w-full max-w-xs shadow-2xl"><p class="text-sm font-bold text-slate-700 mb-6 text-center">${msg}</p><div class="flex gap-2"><button id="cancelClear" class="flex-1 py-3 text-slate-400 font-bold text-sm">Cancel</button><button id="confirmClear" class="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-sm">Clear All</button></div></div></div>`;
             document.body.appendChild(customConfirm);
             document.getElementById('cancelClear').onclick = () => { document.body.removeChild(document.getElementById('clearConfirmModal')); };
-            document.getElementById('confirmClear').onclick = () => { solves = solves.filter(s => !(s.event === currentEvent && s.sessionId === sid)); updateUI(); saveData(); document.body.removeChild(document.getElementById('clearConfirmModal')); timerEl.innerText = (0).toFixed(precision); resetPenalty(); };
+            document.getElementById('confirmClear').onclick = () => { solves = solves.filter(s => !(s.event === currentEvent && s.sessionId === id)); updateUI(); saveData(); document.body.removeChild(document.getElementById('clearConfirmModal')); timerEl.innerText = (0).toFixed(precision); resetPenalty(); };
         };
 
         loadData(); 
