@@ -492,6 +492,7 @@
         let btCharacteristic = null;
         let isBtConnected = false;
         let lastBtState = null;
+        let btPollInterval = null;
 
         const timerEl = document.getElementById('timer');
         const scrambleEl = document.getElementById('scramble');
@@ -573,13 +574,8 @@
                 btStatusText.innerText = "Select GAN Timer...";
                 btIcon.classList.add('bt-pulse');
 
-                // [전략 수정] 와일드카드 접근
-                // 1. 짧은 UUID(0xFFF0)와 긴 UUID를 모두 optionalServices에 등록
-                // 2. 혹시 몰라 표준 서비스들도 등록하여 권한 범위를 넓힘
                 const GAN_SERVICE_SHORT = 0xFFF0;
                 const GAN_SERVICE_LONG = '0000fff0-0000-1000-8000-00805f9b34fb';
-                const GAN_CHAR_SHORT = 0xFFF1;
-                const GAN_CHAR_LONG = '0000fff1-0000-1000-8000-00805f9b34fb';
 
                 log("Requesting Device...");
                 
@@ -594,29 +590,24 @@
                 const server = await btDevice.gatt.connect();
                 log("GATT Connected.");
                 
-                // 안정화 대기
                 await new Promise(r => setTimeout(r, 500));
 
                 let service = null;
                 
-                // [서비스 탐색 전략 1] 긴 UUID로 시도
                 try {
                     log("Trying Long UUID...");
                     service = await server.getPrimaryService(GAN_SERVICE_LONG);
                     log("Found Long UUID!");
                 } catch (e) {
                     log("Long UUID failed. Trying Short...");
-                    // [서비스 탐색 전략 2] 실패시 짧은 UUID(0xFFF0)로 시도
                     try {
                         service = await server.getPrimaryService(GAN_SERVICE_SHORT);
                         log("Found Short UUID!");
                     } catch (e2) {
                         log("Short UUID failed.");
-                        // [서비스 탐색 전략 3] 최후의 수단: 권한 있는 모든 서비스 뒤지기
                         log("Listing all services...");
                         const services = await server.getPrimaryServices();
                         log(`Found ${services.length} services.`);
-                        // FFF0가 포함된 서비스 찾기
                         service = services.find(s => s.uuid.indexOf('fff0') !== -1 || s.uuid.indexOf('FFF0') !== -1);
                     }
                 }
@@ -627,33 +618,60 @@
 
                 log(`Service OK: ${service.uuid}`);
                 
-                // 특성(Characteristic) 찾기 - 마찬가지로 두 가지 방식 시도
-                let characteristic = null;
-                try {
-                    characteristic = await service.getCharacteristic(GAN_CHAR_LONG);
-                } catch (e) {
+                // 특성(Characteristic) 전수 조사 및 자동 선택
+                log("Listing characteristics...");
+                const characteristics = await service.getCharacteristics();
+                log(`Found ${characteristics.length} chars.`);
+
+                let targetChar = null;
+                let usePolling = false;
+
+                // 전략 1: Notify 속성이 있는 특성을 우선적으로 찾음
+                const notifyChar = characteristics.find(c => c.properties.notify);
+                
+                if (notifyChar) {
+                    log(`Found Notify Char: ${notifyChar.uuid}`);
                     try {
-                        characteristic = await service.getCharacteristic(GAN_CHAR_SHORT);
-                    } catch (e2) {
-                         // 최후의 수단: FFF1이 포함된 특성 찾기
-                         const chars = await service.getCharacteristics();
-                         characteristic = chars.find(c => c.uuid.indexOf('fff1') !== -1);
+                        await notifyChar.startNotifications();
+                        notifyChar.addEventListener('characteristicvaluechanged', handleGanBTData);
+                        btCharacteristic = notifyChar;
+                        log("Notifications started successfully!");
+                    } catch (notifyErr) {
+                        log(`Notify failed: ${notifyErr.message}`);
+                        log("Switching to Polling strategy...");
+                        usePolling = true; // Notify 실패 시 폴링으로 전환
                     }
+                } else {
+                    log("No Notify Char found. Switching to Polling strategy...");
+                    usePolling = true;
                 }
 
-                if (!characteristic) {
-                    throw new Error("Characteristic FFF1 not found.");
+                // 전략 2: Notify가 안되면 Read 속성이 있는 특성을 찾아 폴링(Polling)
+                if (usePolling) {
+                    const readChar = characteristics.find(c => c.properties.read);
+                    if (!readChar) {
+                        throw new Error("No readable characteristic found!");
+                    }
+                    log(`Found Read Char: ${readChar.uuid}`);
+                    btCharacteristic = readChar;
+                    
+                    log("Starting Polling (100ms)...");
+                    if (btPollInterval) clearInterval(btPollInterval);
+                    btPollInterval = setInterval(async () => {
+                        if (btDevice && btDevice.gatt.connected) {
+                            try {
+                                const val = await btCharacteristic.readValue();
+                                // 이벤트를 흉내내서 핸들러 호출
+                                handleGanBTData({ target: { value: val } }); 
+                            } catch (e) {
+                                // 읽기 에러는 무시 (일시적일 수 있음)
+                            }
+                        }
+                    }, 100);
                 }
-
-                btCharacteristic = characteristic;
-                log("Characteristic OK. Starting notify...");
-
-                await btCharacteristic.startNotifications();
-                btCharacteristic.addEventListener('characteristicvaluechanged', handleGanBTData);
 
                 log("Success!");
                 
-                // UI 성공 처리
                 isBtConnected = true;
                 document.getElementById('btStatusIcon').classList.replace('disconnected', 'connected');
                 document.getElementById('btInfoPanel').classList.remove('hidden');
@@ -662,7 +680,7 @@
                 btBtn.classList.add('hidden');
                 btStatusText.innerText = "Timer Connected & Ready";
                 btIcon.classList.remove('bt-pulse');
-                btDebugLog.classList.add('hidden'); // 성공시 로그 숨김
+                btDebugLog.classList.add('hidden'); 
                 
                 statusHint.innerText = "Timer Ready (BT)";
                 btDevice.addEventListener('gattserverdisconnected', onBTDisconnected);
@@ -714,12 +732,14 @@
         }
 
         function disconnectBT() {
+            if (btPollInterval) clearInterval(btPollInterval);
             if (btDevice && btDevice.gatt.connected) {
                 btDevice.gatt.disconnect();
             }
         }
 
         function onBTDisconnected() {
+            if (btPollInterval) clearInterval(btPollInterval);
             isBtConnected = false;
             lastBtState = null;
             document.getElementById('btStatusIcon').classList.replace('connected', 'disconnected');
