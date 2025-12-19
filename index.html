@@ -140,6 +140,16 @@
         }
         .tool-option:hover { background: #f1f5f9; color: #3b82f6; }
         .tool-option.active { color: #3b82f6; background: #eff6ff; }
+
+        /* Bluetooth Specific Styles */
+        #btStatusIcon.connected { color: #3b82f6; }
+        #btStatusIcon.disconnected { color: #94a3b8; }
+        .bt-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-slate-50 overflow-hidden">
@@ -152,7 +162,11 @@
             <h1 class="font-bold text-slate-700 tracking-tight">CubeTimer</h1>
         </div>
         <div class="flex items-center gap-2 md:gap-4">
-            <!-- Data Backup/Restore Controls -->
+            <!-- Bluetooth Connection Button -->
+            <button onclick="openBTModal()" id="btToggleBtn" class="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-500 transition-all flex items-center justify-center">
+                <svg id="btStatusIcon" class="disconnected" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+            </button>
+
             <div class="flex items-center bg-slate-100 rounded-xl p-1">
                 <button onclick="exportData()" class="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-tighter text-slate-500 hover:text-blue-600 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
@@ -172,6 +186,41 @@
         </div>
     </header>
 
+    <!-- Bluetooth Modal -->
+    <div id="btOverlay" class="modal-overlay" onclick="closeBTModal()">
+        <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-8" onclick="event.stopPropagation()">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <svg id="btModalIcon" class="text-blue-500" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+                </div>
+                <h3 class="font-bold text-slate-700 text-lg">Bluetooth Timer</h3>
+                <p id="btStatusText" class="text-xs text-slate-400 mt-1 font-bold">Connect your Gan Smart Timer</p>
+            </div>
+            
+            <div id="btInfoPanel" class="hidden bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-[10px] font-black text-slate-400 uppercase">Device</span>
+                    <span id="btDeviceName" class="text-xs font-bold text-slate-600">-</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-[10px] font-black text-slate-400 uppercase">Battery</span>
+                    <span id="btBatteryLevel" class="text-xs font-bold text-blue-600">-</span>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <button id="btConnectBtn" onclick="connectGanTimer()" class="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
+                    Connect Timer
+                </button>
+                <button id="btDisconnectBtn" onclick="disconnectBT()" class="hidden w-full py-4 bg-red-50 text-red-500 font-bold rounded-2xl active:scale-95 transition-all">
+                    Disconnect
+                </button>
+                <button onclick="closeBTModal()" class="w-full py-4 text-slate-400 font-bold text-sm">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ... (Rest of existing modals: sessionOverlay, settingsOverlay, avgShareOverlay, modalOverlay remains unchanged) ... -->
     <div id="sessionOverlay" class="modal-overlay" onclick="closeSessionModal()">
         <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center mb-6">
@@ -408,6 +457,11 @@
         let editingSessionId = null; 
         let activeTool = 'scramble';
 
+        // Bluetooth Variables
+        let btDevice = null;
+        let btCharacteristic = null;
+        let isBtConnected = false;
+
         const timerEl = document.getElementById('timer');
         const scrambleEl = document.getElementById('scramble');
         const manualInput = document.getElementById('manualInput');
@@ -446,7 +500,99 @@
         let cubeState = {};
         const COLORS = { U: '#FFFFFF', D: '#FFD500', L: '#FF8C00', R: '#DC2626', F: '#16A34A', B: '#2563EB' };
 
-        // Data Backup / Restore Functions
+        // Bluetooth Functions
+        window.openBTModal = () => document.getElementById('btOverlay').classList.add('active');
+        window.closeBTModal = () => document.getElementById('btOverlay').classList.remove('active');
+
+        async function connectGanTimer() {
+            const btBtn = document.getElementById('btConnectBtn');
+            const btStatusText = document.getElementById('btStatusText');
+            const btIcon = document.getElementById('btModalIcon');
+
+            try {
+                btBtn.disabled = true;
+                btBtn.innerText = "Searching...";
+                btStatusText.innerText = "Please select your GAN Timer";
+                btIcon.classList.add('bt-pulse');
+
+                btDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: 'GAN' }],
+                    optionalServices: ['0000fff0-0000-1000-8000-00805f9b34fb']
+                });
+
+                const server = await btDevice.gatt.connect();
+                const service = await server.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb');
+                btCharacteristic = await service.getCharacteristic('0000fff1-0000-1000-8000-00805f9b34fb');
+
+                await btCharacteristic.startNotifications();
+                btCharacteristic.addEventListener('characteristicvaluechanged', handleGanBTData);
+
+                // UI Update for Connected State
+                isBtConnected = true;
+                document.getElementById('btStatusIcon').classList.replace('disconnected', 'connected');
+                document.getElementById('btInfoPanel').classList.remove('hidden');
+                document.getElementById('btDeviceName').innerText = btDevice.name;
+                document.getElementById('btDisconnectBtn').classList.remove('hidden');
+                btBtn.classList.add('hidden');
+                btStatusText.innerText = "Timer Connected & Ready";
+                btIcon.classList.remove('bt-pulse');
+                
+                btDevice.addEventListener('gattserverdisconnected', onBTDisconnected);
+
+            } catch (error) {
+                console.error("Bluetooth Error:", error);
+                btStatusText.innerText = "Connection Failed. Try again.";
+                btBtn.disabled = false;
+                btBtn.innerText = "Connect Timer";
+                btIcon.classList.remove('bt-pulse');
+            }
+        }
+
+        function handleGanBTData(event) {
+            const data = event.target.value;
+            // GAN Smart Timer Protocol Overview (Basic parsing)
+            // byte[0] usually represents state
+            // byte[4-7] often represents time in ms
+            const state = data.getUint8(0);
+            
+            // Logic based on state:
+            // 1: Idle, 2: Ready(Hands on), 3: Running, 4: Stopped
+            if (state === 2) { 
+                if (!isRunning) {
+                    isReady = true;
+                    timerEl.classList.add('ready-to-start');
+                    statusHint.innerText = "READY (Bluetooth)";
+                }
+            } else if (state === 3) {
+                if (!isRunning) startTimer();
+            } else if (state === 4) {
+                if (isRunning) {
+                    // Extract final time from packet if available for precision
+                    // let finalTime = data.getUint32(4, true); 
+                    stopTimer();
+                }
+            }
+        }
+
+        function disconnectBT() {
+            if (btDevice && btDevice.gatt.connected) {
+                btDevice.gatt.disconnect();
+            }
+        }
+
+        function onBTDisconnected() {
+            isBtConnected = false;
+            document.getElementById('btStatusIcon').classList.replace('connected', 'disconnected');
+            document.getElementById('btInfoPanel').classList.add('hidden');
+            document.getElementById('btDisconnectBtn').classList.add('hidden');
+            const btBtn = document.getElementById('btConnectBtn');
+            btBtn.classList.remove('hidden');
+            btBtn.disabled = false;
+            btBtn.innerText = "Connect Timer";
+            document.getElementById('btStatusText').innerText = "Timer Disconnected";
+        }
+
+        // Existing Core Logic
         function exportData() {
             const data = {
                 solves: solves,
@@ -486,7 +632,7 @@
                             avgModeToggle.checked = isAo5Mode;
                         }
                         saveData();
-                        location.reload(); // Refresh to apply all data cleanly
+                        location.reload(); 
                     } else {
                         throw new Error("Invalid format");
                     }
@@ -763,7 +909,8 @@
                 date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "")
             });
             isRunning = isReady = false; updateUI(); generateScramble();
-            statusHint.innerText = "Hold to Ready"; timerEl.classList.remove('text-blue-600'); saveData();
+            statusHint.innerText = isBtConnected ? "Ready (Bluetooth)" : "Hold to Ready"; 
+            timerEl.classList.remove('text-blue-600', 'ready-to-start'); saveData();
         }
 
         function togglePenalty(p) {
@@ -785,12 +932,14 @@
         function deleteSolve(id) { solves = solves.filter(s => s.id !== id); updateUI(); saveData(); }
 
         function handleStart(e) {
+            if (isBtConnected) return; // Ignore manual start when BT is connected
             if(e && e.cancelable) e.preventDefault();
             if(isManualMode || isRunning) { if(isRunning) stopTimer(); return; }
             timerEl.classList.add('holding-status');
             holdTimer = setTimeout(()=> { isReady=true; timerEl.classList.replace('holding-status','ready-to-start'); statusHint.innerText="Ready!"; }, 200);
         }
         function handleEnd(e) {
+            if (isBtConnected) return; // Ignore manual end when BT is connected
             if(e && e.cancelable) e.preventDefault();
             clearTimeout(holdTimer);
             if(!isRunning && isReady) startTimer();
