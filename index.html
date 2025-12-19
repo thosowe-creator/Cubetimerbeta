@@ -193,7 +193,8 @@
                 </div>
                 <h3 class="font-bold text-slate-700 text-lg">Bluetooth Timer</h3>
                 <p id="btStatusText" class="text-xs text-slate-400 mt-1 font-bold">Connect your Gan Smart Timer</p>
-                <p id="btErrorDetail" class="text-[10px] text-red-400 mt-2 font-mono hidden"></p>
+                <!-- 에러 메시지를 더 잘 보이게 스타일 수정 -->
+                <p id="btErrorDetail" class="text-[11px] text-red-500 mt-2 font-bold bg-red-50 p-2 rounded-lg hidden break-words"></p>
             </div>
             
             <div id="btInfoPanel" class="hidden bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100">
@@ -201,7 +202,8 @@
                     <span class="text-[10px] font-black text-slate-400 uppercase">Device</span>
                     <span id="btDeviceName" class="text-xs font-bold text-slate-600">-</span>
                 </div>
-                <div class="flex justify-between items-center">
+                <!-- 배터리 정보는 읽어오지 않으므로 UI에서 제거하거나 숨김 처리 -->
+                <div class="flex justify-between items-center hidden">
                     <span class="text-[10px] font-black text-slate-400 uppercase">Battery</span>
                     <span id="btBatteryLevel" class="text-xs font-bold text-blue-600">-</span>
                 </div>
@@ -561,20 +563,18 @@
                 btStatusText.innerText = "Select your GAN Timer in the popup";
                 btIcon.classList.add('bt-pulse');
 
-                // [안정화] 표준 서비스 UUID 추가
+                // [최종 수정] 'Not supported' 에러 해결을 위해 부가 서비스 요청(battery 등)을 모두 제거.
+                // 오직 GAN 타이머 전용 커스텀 서비스 하나만 명확하게 요청합니다.
                 btDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ namePrefix: 'GAN' }],
-                    optionalServices: [
-                        '0000fff0-0000-1000-8000-00805f9b34fb',
-                        'battery_service', 'device_information'
-                    ]
+                    optionalServices: ['0000fff0-0000-1000-8000-00805f9b34fb']
                 });
 
                 btStatusText.innerText = "Connecting...";
                 
                 const server = await btDevice.gatt.connect();
                 
-                // [안정화] 연결 직후 즉시 서비스를 호출하면 에러가 날 수 있어 500ms 대기
+                // [안정화 유지] 연결 직후 즉시 명령을 보내면 기기가 당황할 수 있으므로 0.5초 대기
                 await new Promise(r => setTimeout(r, 500));
 
                 const service = await server.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb');
@@ -598,7 +598,6 @@
             } catch (error) {
                 console.error("Bluetooth Connection Error:", error);
                 btStatusText.innerText = "Connection failed";
-                // [디버그] 사용자에게 정확한 에러 메시지 노출
                 btErrorDetail.innerText = error.message || error;
                 btErrorDetail.classList.remove('hidden');
                 
@@ -1340,5 +1339,3 @@
     </script>
 </body>
 </html>
-
-
