@@ -86,7 +86,8 @@
         .avg-badge { @apply px-4 py-3 rounded-2xl bg-white border border-slate-50 shadow-sm flex flex-col items-center min-w-[110px] transition-all; }
         .modal-overlay { background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); display: none; position: fixed; inset: 0; z-index: 50; align-items: center; justify-content: center; padding: 1rem; }
         .modal-overlay.active { display: flex; }
-        .penalty-btn { @apply flex-1 py-3 text-xs font-bold rounded-xl transition-all active:scale-95 border; }
+        .penalty-btn { @apply flex-1 py-3 text-xs font-bold rounded-xl transition-all border; touch-action: auto; }
+        .penalty-btn:active { transform: scale(0.95); }
         .penalty-btn.active-plus2 { @apply bg-orange-100 border-orange-200 text-orange-600; }
         .penalty-btn.active-dnf { @apply bg-red-100 border-red-200 text-red-600; }
         .penalty-btn.inactive { @apply bg-white border-slate-200 text-slate-400 hover:bg-slate-50; }
@@ -158,10 +159,9 @@
         </div>
     </div>
 
-    <!-- Main Layout Adjustment for Responsive Order -->
     <main class="flex flex-col md:flex-row p-4 gap-4 flex-grow overflow-y-auto md:overflow-hidden">
         
-        <!-- Timer Section (Mobile: Order 1, Desktop: Order 1) -->
+        <!-- Timer Section (Mobile First) -->
         <div class="flex-grow flex flex-col items-center justify-between p-2 md:p-4 h-full order-1 overflow-y-auto custom-scroll">
             <div class="w-full max-w-4xl space-y-4">
                 <div class="flex flex-col items-center gap-4">
@@ -226,7 +226,7 @@
             </div>
         </div>
 
-        <!-- Sidebar Section (Mobile: Order 2, Desktop: Order 2) -->
+        <!-- Sidebar Section (Now at bottom in mobile) -->
         <div class="w-full md:w-80 history-panel flex flex-col order-2 overflow-hidden self-start">
             <div class="p-4 border-b border-slate-50 flex justify-between items-center bg-white shrink-0">
                 <div class="flex items-center gap-2"><h3 class="font-bold text-slate-600 text-sm">Solves</h3><span id="solveCount" class="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">0</span></div>
@@ -276,6 +276,7 @@
         const dnfBtn = document.getElementById('dnfBtn');
         const visualizerCanvas = document.getElementById('cubeVisualizer');
         const noVisualizerMsg = document.getElementById('noVisualizerMsg');
+        const avgModeToggle = document.getElementById('avgModeToggle');
 
         const configs = {
             '333': { moves: ["U","D","L","R","F","B"], len: 21, n: 3, cat: 'standard' },
@@ -375,6 +376,15 @@
             document.querySelectorAll('.event-tab').forEach(t => t.classList.remove('active'));
             const activeTab = document.getElementById(`tab-${e}`);
             if (activeTab) activeTab.classList.add('active');
+
+            // 666, 777 종목의 경우 Mo3 모드로 자동 전환
+            if (e === '666' || e === '777') {
+                isAo5Mode = false;
+                avgModeToggle.checked = false;
+            } else {
+                // 기존 사용자 설정을 유지하려면 이 부분을 조절할 수 있으나, 보통 큰 큐브는 Mo3가 국룰
+            }
+
             generateScramble();
             updateUI();
             timerEl.innerText = (0).toFixed(precision);
@@ -498,11 +508,19 @@
         }
 
         function togglePenalty(p) {
-            if(!solves.length || isRunning || solves[0].event!==currentEvent) return;
-            solves[0].penalty = (solves[0].penalty===p)?null:p;
-            let s = solves[0];
-            timerEl.innerText = s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time) + (s.penalty==='+2'?'+':'');
-            updateUI(); updatePenaltyBtns(s);
+            if(!solves.length || isRunning) return;
+            // 현재 활성화된 종목의 마지막 기록에 적용
+            const sessionSolves = solves.filter(s => s.event === currentEvent);
+            if (!sessionSolves.length) return;
+
+            const targetSolve = sessionSolves[0];
+            targetSolve.penalty = (targetSolve.penalty===p)?null:p;
+            
+            // 만약 현재 화면에 표시된 시간이 방금 끝난 기록이라면 UI 즉시 갱신
+            timerEl.innerText = targetSolve.penalty==='DNF'?'DNF':formatTime(targetSolve.penalty==='+2'?targetSolve.time+2000:targetSolve.time) + (targetSolve.penalty==='+2'?'+':'');
+            
+            updateUI(); 
+            updatePenaltyBtns(targetSolve);
         }
 
         function updatePenaltyBtns(s) {
@@ -513,13 +531,13 @@
         function deleteSolve(id) { solves = solves.filter(s => s.id !== id); updateUI(); }
 
         function handleStart(e) {
-            if(e) e.preventDefault();
+            if(e && e.cancelable) e.preventDefault();
             if(isManualMode || isRunning) { if(isRunning) stopTimer(); return; }
             timerEl.classList.add('holding-status');
             holdTimer = setTimeout(()=> { isReady=true; timerEl.classList.replace('holding-status','ready-to-start'); statusHint.innerText="READY!"; }, 200);
         }
         function handleEnd(e) {
-            if(e) e.preventDefault();
+            if(e && e.cancelable) e.preventDefault();
             clearTimeout(holdTimer);
             if(!isRunning && isReady) startTimer();
             else { timerEl.classList.remove('holding-status','ready-to-start'); isReady=false; statusHint.innerText="HOLD TO READY"; }
@@ -537,6 +555,9 @@
         const interactiveArea = document.getElementById('timerInteractiveArea');
         interactiveArea.addEventListener('touchstart', handleStart, { passive: false });
         interactiveArea.addEventListener('touchend', handleEnd, { passive: false });
+
+        // 버튼들도 터치 이벤트를 지원하도록 명시적 등록 (클릭 이벤트와 중복 방지 필요 없음 - 터치 전용 로직이 아니므로)
+        // 단, touch-action: auto와 onclick을 조합하여 모바일 브라우저의 기본 클릭 처리를 활용
 
         window.openSettings = () => { 
             document.getElementById('settingsOverlay').classList.add('active'); 
@@ -566,7 +587,7 @@
             updateUI(); 
             timerEl.innerText=(0).toFixed(precision); 
         };
-        document.getElementById('avgModeToggle').onchange = e => { 
+        avgModeToggle.onchange = e => { 
             isAo5Mode = e.target.checked; 
             updateUI(); 
         };
