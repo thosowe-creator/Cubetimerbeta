@@ -195,7 +195,7 @@
                 <p id="btStatusText" class="text-xs text-slate-400 mt-1 font-bold">Connect your Gan Smart Timer</p>
                 <!-- 에러 메시지 영역 -->
                 <p id="btErrorDetail" class="text-[11px] text-red-500 mt-2 font-bold bg-red-50 p-2 rounded-lg hidden break-words"></p>
-                <!-- 서비스 탐색 로그 영역 (디버깅용) - 높이를 좀 더 키움 -->
+                <!-- 서비스 탐색 로그 영역 (디버깅용) -->
                 <div id="btDebugLog" class="text-[9px] text-slate-400 mt-2 font-mono text-left bg-slate-50 p-2 rounded-lg hidden h-40 overflow-y-auto border border-slate-200"></div>
             </div>
             
@@ -618,54 +618,75 @@
 
                 log(`Service OK: ${service.uuid}`);
                 
-                // 특성(Characteristic) 전수 조사 및 스마트 선택
                 log("Listing characteristics...");
                 const characteristics = await service.getCharacteristics();
                 log(`Found ${characteristics.length} chars.`);
 
-                let charsMap = {};
                 characteristics.forEach(c => {
-                    const shortUuid = c.uuid.substring(4, 8).toUpperCase();
-                    charsMap[shortUuid] = c;
                     log(`Char: ${c.uuid.substring(0,8)}... Props: R=${c.properties.read}, W=${c.properties.write}, N=${c.properties.notify}`);
                 });
 
-                let targets = [];
-                // [최종 수정] FFF1, FFF2, FFF7을 돌아가면서 읽기 시도 (Multi-Polling)
-                if (charsMap['FFF1']) targets.push(charsMap['FFF1']);
-                if (charsMap['FFF2']) targets.push(charsMap['FFF2']);
-                if (charsMap['FFF7']) targets.push(charsMap['FFF7']);
+                let targetChar = null;
+                let usePolling = false;
 
-                if (targets.length === 0) {
-                    throw new Error("No suitable characteristics found.");
+                // [최종 수정] 로직 단순화: 무조건 FFF7을 최우선으로 잡는다. (아까 로그에서 FFF7이 Notify가 있었으므로)
+                // 만약 FFF7이 없으면 FFF1을 잡고 Polling을 시도한다.
+                const c_FFF7 = characteristics.find(c => c.uuid.indexOf('fff7') !== -1 || c.uuid.indexOf('FFF7') !== -1);
+                const c_FFF1 = characteristics.find(c => c.uuid.indexOf('fff1') !== -1 || c.uuid.indexOf('FFF1') !== -1);
+                
+                if (c_FFF7) {
+                    targetChar = c_FFF7;
+                    log("Selected: FFF7 (Preferred Data Channel)");
+                } else if (c_FFF1) {
+                    targetChar = c_FFF1;
+                    log("Selected: FFF1 (Fallback Channel)");
+                    // FFF1은 Notify가 없었으므로 Polling 강제
+                    if (!c_FFF1.properties.notify) {
+                        usePolling = true;
+                        log("Mode: Force Polling");
+                    }
+                } else {
+                    targetChar = characteristics[0];
+                    log("Selected: First Available (Desperate mode)");
                 }
 
-                log(`Multi-Polling: ${targets.map(c => c.uuid.substring(4,8)).join(', ')}`);
+                if (!targetChar) throw new Error("No characteristic found.");
 
-                // 2. Polling 시작
-                log("Starting Polling (100ms)...");
-                if (btPollInterval) clearInterval(btPollInterval);
-                
-                let pollIdx = 0;
-                btPollInterval = setInterval(async () => {
-                    if (btDevice && btDevice.gatt.connected) {
-                        const char = targets[pollIdx % targets.length];
-                        pollIdx++;
-                        
-                        try {
-                            const val = await char.readValue();
-                            // 읽기 성공 시에만 데이터 처리 호출
-                            handleGanBTData({ target: { value: val } }); 
-                        } catch (e) {
-                            // 읽기 에러 로깅 (스로틀링 적용: 2초에 한 번만)
-                            const logEl = document.getElementById('btDebugLog');
-                            if (logEl && (!logEl.lastErrTime || Date.now() - logEl.lastErrTime > 2000)) {
-                                 log(`Polling Error (${char.uuid.substring(4,8)}): ${e.message}`);
-                                 logEl.lastErrTime = Date.now();
-                            }
+                btCharacteristic = targetChar;
+
+                // 1. Notify 시도 (Notify 가능한 경우에만)
+                if (!usePolling && btCharacteristic.properties.notify) {
+                    try {
+                        await btCharacteristic.startNotifications();
+                        btCharacteristic.addEventListener('characteristicvaluechanged', handleGanBTData);
+                        log("Notifications started!");
+                    } catch (notifyErr) {
+                        log(`Notify failed: ${notifyErr.message}`);
+                        // 실패하면 Read로 전환 시도
+                        if (btCharacteristic.properties.read) {
+                            log("Switching to Polling...");
+                            usePolling = true;
+                        } else {
+                            throw notifyErr;
                         }
                     }
-                }, 100);
+                }
+
+                // 2. Polling 시작 (Notify가 없거나 실패한 경우)
+                if (usePolling) {
+                    log("Starting Polling (50ms)...");
+                    if (btPollInterval) clearInterval(btPollInterval);
+                    btPollInterval = setInterval(async () => {
+                        if (btDevice && btDevice.gatt.connected) {
+                            try {
+                                const val = await btCharacteristic.readValue();
+                                handleGanBTData({ target: { value: val } }); 
+                            } catch (e) {
+                                // 읽기 에러 무시 (연결 유지 중 일시적 오류 등)
+                            }
+                        }
+                    }, 50);
+                }
 
                 log("Success! Ready.");
                 
