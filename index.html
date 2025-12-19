@@ -618,7 +618,7 @@
 
                 log(`Service OK: ${service.uuid}`);
                 
-                // 특성(Characteristic) 전수 조사 및 자동 선택
+                // 특성(Characteristic) 전수 조사 및 스마트 선택
                 log("Listing characteristics...");
                 const characteristics = await service.getCharacteristics();
                 log(`Found ${characteristics.length} chars.`);
@@ -630,58 +630,75 @@
                 let targetChar = null;
                 let usePolling = false;
 
-                // 전략 1: Notify 속성이 있는 특성을 우선적으로 찾음
-                // FFF1을 우선적으로 찾되, 없으면 Notify 되는 놈을 찾음
-                const notifyChar = characteristics.find(c => c.uuid.indexOf('fff1') !== -1 && c.properties.notify) 
-                                || characteristics.find(c => c.properties.notify);
-                
-                if (notifyChar) {
-                    log(`Found Notify Char: ${notifyChar.uuid.substring(0,8)}...`);
-                    try {
-                        await notifyChar.startNotifications();
-                        notifyChar.addEventListener('characteristicvaluechanged', handleGanBTData);
-                        btCharacteristic = notifyChar;
-                        log("Notifications started successfully!");
-                    } catch (notifyErr) {
-                        log(`Notify failed: ${notifyErr.message}`);
-                        log("Switching to Polling strategy...");
-                        usePolling = true; // Notify 실패 시 폴링으로 전환
-                    }
-                } else {
-                    log("No Notify Char found. Switching to Polling strategy...");
+                // [스마트 선택 로직 수정]
+                // 1순위: FFF1 + Notify (표준)
+                // 2순위: FFF7 + Notify (특수 모델용 슈퍼 채널)
+                // 3순위: Notify + Read 권한이 있는 모든 채널
+                // 4순위: Notify 권한이 있는 채널 (FFF4 등)
+                // 5순위: FFF1 (Notify 없으면 Polling)
+
+                const findChar = (filter) => characteristics.find(filter);
+
+                const c_FFF1_Notify = findChar(c => c.uuid.indexOf('fff1') !== -1 && c.properties.notify);
+                const c_FFF7_Notify = findChar(c => c.uuid.indexOf('fff7') !== -1 && c.properties.notify);
+                const c_Any_ReadNotify = findChar(c => c.properties.read && c.properties.notify);
+                const c_Any_Notify = findChar(c => c.properties.notify);
+                const c_FFF1_Read = findChar(c => c.uuid.indexOf('fff1') !== -1 && c.properties.read);
+
+                if (c_FFF1_Notify) {
+                    targetChar = c_FFF1_Notify;
+                    log("Selected: FFF1 (Standard)");
+                } else if (c_FFF7_Notify) {
+                    targetChar = c_FFF7_Notify;
+                    log("Selected: FFF7 (Alternative Data)");
+                } else if (c_Any_ReadNotify) {
+                    targetChar = c_Any_ReadNotify;
+                    log(`Selected: ${targetChar.uuid.substring(0,8)} (Read+Notify)`);
+                } else if (c_Any_Notify) {
+                    targetChar = c_Any_Notify;
+                    log(`Selected: ${targetChar.uuid.substring(0,8)} (Notify Only)`);
+                } else if (c_FFF1_Read) {
+                    targetChar = c_FFF1_Read;
                     usePolling = true;
+                    log("Selected: FFF1 (Polling Mode)");
+                } else {
+                    throw new Error("No suitable characteristic found.");
                 }
 
-                // 전략 2: Notify가 안되면 Read 속성이 있는 특성을 찾아 폴링(Polling)
-                if (usePolling) {
-                    // FFF1을 우선적으로 찾되, 없으면 Read 되는 놈을 찾음
-                    const readChar = characteristics.find(c => c.uuid.indexOf('fff1') !== -1 && c.properties.read) 
-                                  || characteristics.find(c => c.properties.read);
+                btCharacteristic = targetChar;
 
-                    if (!readChar) {
-                        throw new Error("No readable characteristic found!");
+                // 1. Notify 시도
+                if (!usePolling) {
+                    try {
+                        await btCharacteristic.startNotifications();
+                        btCharacteristic.addEventListener('characteristicvaluechanged', handleGanBTData);
+                        log("Notifications started!");
+                    } catch (notifyErr) {
+                        log(`Notify failed: ${notifyErr.message}`);
+                        // Notify 실패시, Read 권한이 있다면 Polling으로 전환
+                        if (btCharacteristic.properties.read) {
+                            log("Switching to Polling...");
+                            usePolling = true;
+                        } else {
+                            throw notifyErr; // Read도 안되면 답 없음
+                        }
                     }
-                    log(`Found Read Char: ${readChar.uuid.substring(0,8)}...`);
-                    btCharacteristic = readChar;
-                    
+                }
+
+                // 2. Polling 시작
+                if (usePolling) {
                     log("Starting Polling (50ms)...");
                     if (btPollInterval) clearInterval(btPollInterval);
                     btPollInterval = setInterval(async () => {
                         if (btDevice && btDevice.gatt.connected) {
                             try {
                                 const val = await btCharacteristic.readValue();
-                                // 이벤트를 흉내내서 핸들러 호출
                                 handleGanBTData({ target: { value: val } }); 
                             } catch (e) {
-                                // 읽기 에러 로깅 (스로틀링 적용)
-                                const logEl = document.getElementById('btDebugLog');
-                                if (logEl && (!logEl.lastErrTime || Date.now() - logEl.lastErrTime > 2000)) {
-                                     log(`Polling Error: ${e.message}`);
-                                     logEl.lastErrTime = Date.now();
-                                }
+                                // 읽기 에러 로깅
                             }
                         }
-                    }, 50); // Polling 간격을 더 짧게 조정 (반응성 향상)
+                    }, 50);
                 }
 
                 log("Success! Ready.");
@@ -694,9 +711,6 @@
                 btBtn.classList.add('hidden');
                 btStatusText.innerText = "Timer Connected & Ready";
                 btIcon.classList.remove('bt-pulse');
-                
-                // [수정] 성공 후에도 로그창 유지 (데이터 확인용)
-                // btDebugLog.classList.add('hidden'); 
                 
                 statusHint.innerText = "Timer Ready (BT)";
                 btDevice.addEventListener('gattserverdisconnected', onBTDisconnected);
@@ -717,16 +731,15 @@
         function handleGanBTData(event) {
             const dataView = event.target.value;
             
-            // [진단용 코드 추가] 수신된 데이터를 16진수로 변환하여 로그에 출력
+            // [진단용 코드] RX 데이터 출력
             const hex = Array.from(new Uint8Array(dataView.buffer))
                 .map(b => b.toString(16).padStart(2, '0').toUpperCase())
                 .join(' ');
 
             const logEl = document.getElementById('btDebugLog');
             if(logEl) {
-                // 값이 변할 때만 로그 찍기 (너무 빠르면 도배되므로)
                 if (logEl.lastVal !== hex) {
-                    logEl.innerHTML = `<span class="text-blue-500 font-bold">${new Date().toLocaleTimeString()}</span>: ${hex}<br>` + logEl.innerHTML.slice(0, 2000);
+                    logEl.innerHTML = `<span class="text-blue-500 font-bold">RX</span>: ${hex}<br>` + logEl.innerHTML.slice(0, 2000);
                     logEl.lastVal = hex;
                 }
             }
