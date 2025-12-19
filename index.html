@@ -193,6 +193,7 @@
                 </div>
                 <h3 class="font-bold text-slate-700 text-lg">Bluetooth Timer</h3>
                 <p id="btStatusText" class="text-xs text-slate-400 mt-1 font-bold">Connect your Gan Smart Timer</p>
+                <p id="btErrorDetail" class="text-[10px] text-red-400 mt-2 font-mono hidden"></p>
             </div>
             
             <div id="btInfoPanel" class="hidden bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100">
@@ -542,7 +543,11 @@
         async function connectGanTimer() {
             const btBtn = document.getElementById('btConnectBtn');
             const btStatusText = document.getElementById('btStatusText');
+            const btErrorDetail = document.getElementById('btErrorDetail');
             const btIcon = document.getElementById('btModalIcon');
+
+            btErrorDetail.classList.add('hidden');
+            btErrorDetail.innerText = "";
 
             if (!navigator.bluetooth) {
                 btStatusText.innerText = "Web Bluetooth is not supported in this browser.";
@@ -556,12 +561,22 @@
                 btStatusText.innerText = "Select your GAN Timer in the popup";
                 btIcon.classList.add('bt-pulse');
 
+                // [안정화] 표준 서비스 UUID 추가
                 btDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ namePrefix: 'GAN' }],
-                    optionalServices: ['0000fff0-0000-1000-8000-00805f9b34fb']
+                    optionalServices: [
+                        '0000fff0-0000-1000-8000-00805f9b34fb',
+                        'battery_service', 'device_information'
+                    ]
                 });
 
+                btStatusText.innerText = "Connecting...";
+                
                 const server = await btDevice.gatt.connect();
+                
+                // [안정화] 연결 직후 즉시 서비스를 호출하면 에러가 날 수 있어 500ms 대기
+                await new Promise(r => setTimeout(r, 500));
+
                 const service = await server.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb');
                 btCharacteristic = await service.getCharacteristic('0000fff1-0000-1000-8000-00805f9b34fb');
 
@@ -582,7 +597,11 @@
 
             } catch (error) {
                 console.error("Bluetooth Connection Error:", error);
-                btStatusText.innerText = error.name === 'NotFoundError' ? "No device selected." : "Connection failed.";
+                btStatusText.innerText = "Connection failed";
+                // [디버그] 사용자에게 정확한 에러 메시지 노출
+                btErrorDetail.innerText = error.message || error;
+                btErrorDetail.classList.remove('hidden');
+                
                 btBtn.disabled = false;
                 btBtn.innerText = "Connect Timer";
                 btIcon.classList.remove('bt-pulse');
@@ -639,6 +658,7 @@
             btBtn.disabled = false;
             btBtn.innerText = "Connect Timer";
             document.getElementById('btStatusText').innerText = "Timer Disconnected";
+            document.getElementById('btErrorDetail').classList.add('hidden');
             statusHint.innerText = "Hold to Ready";
         }
 
