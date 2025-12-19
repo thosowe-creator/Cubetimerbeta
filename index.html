@@ -193,13 +193,19 @@
                 </div>
                 <h3 class="font-bold text-slate-700 text-lg">Bluetooth Timer</h3>
                 <p id="btStatusText" class="text-xs text-slate-400 mt-1 font-bold">Connect your Gan Smart Timer</p>
-                <div id="btDebugLog" class="text-[9px] text-slate-400 mt-2 font-mono text-left bg-slate-50 p-2 rounded-lg hidden h-20 overflow-y-auto"></div>
+                <p id="btErrorDetail" class="text-[11px] text-red-500 mt-2 font-bold bg-red-50 p-2 rounded-lg hidden break-words"></p>
+                <!-- 디버그 로그: 높이 확보 및 기본 스타일 지정 -->
+                <div id="btDebugLog" class="text-[10px] text-slate-500 mt-3 font-mono text-left bg-slate-100 p-3 rounded-xl hidden h-48 overflow-y-auto border border-slate-200 shadow-inner"></div>
             </div>
             
             <div id="btInfoPanel" class="hidden bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100">
                 <div class="flex justify-between items-center mb-2">
                     <span class="text-[10px] font-black text-slate-400 uppercase">Device</span>
                     <span id="btDeviceName" class="text-xs font-bold text-slate-600">-</span>
+                </div>
+                <div class="flex justify-between items-center hidden">
+                    <span class="text-[10px] font-black text-slate-400 uppercase">Battery</span>
+                    <span id="btBatteryLevel" class="text-xs font-bold text-blue-600">-</span>
                 </div>
             </div>
 
@@ -545,13 +551,26 @@
             const btDebugLog = document.getElementById('btDebugLog');
             const btIcon = document.getElementById('btModalIcon');
 
-            if(btDebugLog) btDebugLog.classList.add('hidden');
+            // 초기화 시 로그창 숨기지 않고 내용을 비움 (재연결 시 대비)
+            if(btDebugLog) {
+                btDebugLog.innerHTML = ""; 
+                btDebugLog.classList.add('hidden');
+            }
             if(btErrorDetail) btErrorDetail.classList.add('hidden');
 
-            const log = (msg) => { console.log("[BT]", msg); };
+            // [수정] 화면 로그 출력 함수 복구
+            const log = (msg) => {
+                console.log("[BT]", msg);
+                if (btDebugLog) {
+                    btDebugLog.classList.remove('hidden');
+                    btDebugLog.innerHTML += `> ${msg}<br>`;
+                    btDebugLog.scrollTop = btDebugLog.scrollHeight;
+                }
+            };
 
             if (!navigator.bluetooth) {
                 btStatusText.innerText = "Web Bluetooth not supported.";
+                log("Error: Web Bluetooth API not found");
                 return;
             }
 
@@ -591,6 +610,11 @@
                 const characteristics = await service.getCharacteristics();
                 activeCharacteristics = characteristics.filter(c => c.properties.read);
                 log(`Found ${activeCharacteristics.length} readable chars`);
+                
+                // 검색된 채널 정보 출력
+                activeCharacteristics.forEach(c => {
+                     log(`- ${c.uuid.substring(4,8).toUpperCase()}`);
+                });
 
                 if (activeCharacteristics.length === 0) throw new Error("No readable chars found");
 
@@ -629,6 +653,7 @@
                     btErrorDetail.innerText = error.message;
                     btErrorDetail.classList.remove('hidden');
                 }
+                log(`Error: ${error.message}`);
                 
                 btBtn.disabled = false;
                 btBtn.innerText = "Connect Timer";
@@ -639,6 +664,22 @@
         function handleGanBTData(dataView) {
             if (dataView.target) dataView = dataView.target.value;
             if (!dataView || dataView.byteLength < 6) return;
+
+            // [진단용] 데이터가 들어오면 로그에 16진수 출력 (변경될 때만)
+            const hex = Array.from(new Uint8Array(dataView.buffer))
+                .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+                .join(' ');
+            
+            const logEl = document.getElementById('btDebugLog');
+            if (logEl && (!logEl.lastHex || logEl.lastHex !== hex)) {
+                 // 00으로만 가득찬 데이터는 로그 도배 방지를 위해 무시 가능하지만, 
+                 // 지금은 확인이 필요하므로 00이 아니거나 변화가 있으면 출력
+                 if (hex !== "00 00 00 00 00 00 00 00" && hex !== "00 00 00 00 00 00") {
+                     logEl.innerHTML += `<span class="text-blue-500 font-bold">RX: ${hex}</span><br>`;
+                     logEl.scrollTop = logEl.scrollHeight;
+                 }
+                 logEl.lastHex = hex;
+            }
 
             const state = dataView.getUint8(0);
             
