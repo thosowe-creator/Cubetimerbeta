@@ -30,7 +30,7 @@ let lastStopTimestamp = 0;
 // Update Log Configuration
 const APP_VERSION = '1.1'; 
 const UPDATE_LOGS = [
-    "V1.1 모바일 UI 개편,
+    "V1.1 모바일 UI 개편",
     "Gan Halo Timer 사용 시 소숫점이 반올림되던 현상 수정",
     "인스펙션 기능 추가",
 ];
@@ -1262,4 +1262,5 @@ loadData();
 changeEvent(currentEvent);
 // Check for updates on load
 checkUpdateLog();
+
 
