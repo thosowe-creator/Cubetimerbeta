@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cube Timer (WCA Compliant)</title>
+    <title>Cube Timer (GAN Halo Edition)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <style>
@@ -39,6 +39,8 @@
         .tool-option.active { color: #3b82f6; background: #eff6ff; }
         .category-btn.active { background-color: #3b82f6; color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); }
         .event-tab.active { background-color: #3b82f6; color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); }
+        /* GAN Ready State Color (Green) */
+        .ready-gan { color: #10b981 !important; transform: scale(1.02); } 
     </style>
 </head>
 <body class="h-screen flex flex-col bg-slate-50 overflow-hidden">
@@ -73,21 +75,16 @@
                 </div>
                 <h3 class="font-bold text-slate-700 text-lg">Bluetooth Timer</h3>
                 <p id="btStatusText" class="text-xs text-slate-400 mt-1 font-bold">Connect your Gan Smart Timer</p>
-                <p id="btErrorDetail" class="text-[11px] text-red-500 mt-2 font-bold bg-red-50 p-2 rounded-lg hidden break-words"></p>
-                <!-- 디버그 로그 -->
-                <div id="btDebugLog" class="text-[10px] text-slate-500 mt-3 font-mono text-left bg-slate-100 p-3 rounded-xl hidden h-48 overflow-y-auto border border-slate-200 shadow-inner"></div>
             </div>
-            
             <div id="btInfoPanel" class="hidden bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100">
                 <div class="flex justify-between items-center mb-2">
                     <span class="text-[10px] font-black text-slate-400 uppercase">Device</span>
                     <span id="btDeviceName" class="text-xs font-bold text-slate-600">-</span>
                 </div>
             </div>
-
             <div class="space-y-3">
                 <button id="btConnectBtn" onclick="connectGanTimer()" class="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
-                    Connect Timer (Native Decrypt)
+                    Connect Timer
                 </button>
                 <button id="btDisconnectBtn" onclick="disconnectBT()" class="hidden w-full py-4 bg-red-50 text-red-500 font-bold rounded-2xl active:scale-95 transition-all">
                     Disconnect
@@ -97,7 +94,7 @@
         </div>
     </div>
 
-    <!-- Sessions Modal (복구완료) -->
+    <!-- Sessions Modal -->
     <div id="sessionOverlay" class="modal-overlay" onclick="closeSessionModal()">
         <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center mb-6">
@@ -138,11 +135,7 @@
             <div class="space-y-4">
                 <div class="flex items-center justify-between p-3 bg-slate-50 rounded-2xl">
                     <div><p class="text-xs font-bold text-slate-600">Average Mode</p></div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-[9px] font-bold text-slate-400">Mo3</span>
-                        <label class="switch"><input type="checkbox" id="avgModeToggle" checked><span class="slider"></span></label>
-                        <span class="text-[9px] font-bold text-slate-400">Ao5</span>
-                    </div>
+                    <div class="flex items-center gap-2"><span class="text-[9px] font-bold text-slate-400">Mo3</span><label class="switch"><input type="checkbox" id="avgModeToggle" checked><span class="slider"></span></label><span class="text-[9px] font-bold text-slate-400">Ao5</span></div>
                 </div>
                 <div class="flex items-center justify-between p-3 bg-blue-50/50 rounded-2xl border border-blue-100">
                     <div><p class="text-xs font-bold text-blue-600">Manual Entry</p></div>
@@ -150,11 +143,7 @@
                 </div>
                 <div class="flex items-center justify-between p-3 bg-slate-50 rounded-2xl">
                     <div><p class="text-xs font-bold text-slate-600">Precision</p></div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-[9px] font-bold text-slate-400">.00</span>
-                        <label class="switch"><input type="checkbox" id="precisionToggle"><span class="slider"></span></label>
-                        <span class="text-[9px] font-bold text-slate-400">.000</span>
-                    </div>
+                    <div class="flex items-center gap-2"><span class="text-[9px] font-bold text-slate-400">.00</span><label class="switch"><input type="checkbox" id="precisionToggle"><span class="slider"></span></label><span class="text-[9px] font-bold text-slate-400">.000</span></div>
                 </div>
             </div>
             <button onclick="closeSettings()" class="w-full mt-8 py-3 bg-slate-800 text-white font-bold rounded-xl shadow-lg text-sm">Save & Close</button>
@@ -264,13 +253,8 @@
             <!-- Timer Area -->
             <div id="timerContainer" class="flex flex-col items-center justify-center flex-grow w-full select-none">
                 <div id="timerInteractiveArea" class="rounded-3xl transition-colors hover:bg-slate-100/30">
-                    <div id="timerDisplayContainer" class="w-full flex justify-center flex-col items-center">
+                    <div id="timerDisplayContainer" class="w-full flex justify-center">
                         <div id="timer" class="timer-display text-slate-800 transition-all duration-100">0.00</div>
-                        <!-- Monitoring Data -->
-                        <div id="btRawDisplay" class="font-mono text-[10px] text-slate-400 mt-2 font-bold tracking-wider hidden flex flex-col items-center">
-                            <span id="btRawHex">RAW: --</span>
-                            <span id="btDecVal" class="text-blue-500">DEC: --</span>
-                        </div>
                         <input type="text" id="manualInput" class="manual-input hidden" placeholder="0.00">
                     </div>
                     
@@ -377,32 +361,6 @@
         let btCharacteristic = null;
         let isBtConnected = false;
         let lastBtState = null;
-        let btPollInterval = null;
-        let lastBtTime = 0;
-        let stableCount = 0;
-
-        // GAN AES Key & IV (Standard)
-        const hexToBytes = (hex) => {
-            const bytes = new Uint8Array(hex.length / 2);
-            for (let i = 0; i < bytes.length; i++) {
-                bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
-            }
-            return bytes;
-        };
-        const GAN_KEY_BYTES = hexToBytes("01024228319116072005185442111253");
-        const GAN_IV_BYTES  = hexToBytes("11033228210176272055786472910253");
-        let aesKey = null;
-
-        async function initCrypto() {
-            try {
-                if(!window.crypto || !window.crypto.subtle) return;
-                aesKey = await window.crypto.subtle.importKey(
-                    "raw", GAN_KEY_BYTES, { name: "AES-CBC" }, false, ["decrypt"]
-                );
-                console.log("Crypto initialized");
-            } catch(e) { console.error("Crypto init failed", e); }
-        }
-        initCrypto();
 
         const timerEl = document.getElementById('timer');
         const scrambleEl = document.getElementById('scramble');
@@ -424,7 +382,7 @@
         const avgModeToggle = document.getElementById('avgModeToggle');
         const precisionToggle = document.getElementById('precisionToggle');
         const manualEntryToggle = document.getElementById('manualEntryToggle');
-        
+
         const configs = {
             '333': { moves: ["U","D","L","R","F","B"], len: 21, n: 3, cat: 'standard' },
             '333oh': { moves: ["U","D","L","R","F","B"], len: 21, n: 3, cat: 'standard' },
@@ -451,182 +409,127 @@
         let cubeState = {};
         const COLORS = { U: '#FFFFFF', D: '#FFD500', L: '#FF8C00', R: '#DC2626', F: '#16A34A', B: '#2563EB' };
 
-        // BT Logic
         window.openBTModal = () => document.getElementById('btOverlay').classList.add('active');
         window.closeBTModal = () => document.getElementById('btOverlay').classList.remove('active');
 
         async function connectGanTimer() {
             const btBtn = document.getElementById('btConnectBtn');
             const btStatusText = document.getElementById('btStatusText');
-            const btErrorDetail = document.getElementById('btErrorDetail');
-            const btDebugLog = document.getElementById('btDebugLog');
-            
-            if(btDebugLog) { btDebugLog.innerHTML = ""; btDebugLog.classList.add('hidden'); }
-            if(btErrorDetail) btErrorDetail.classList.add('hidden');
-
-            const log = (msg) => {
-                console.log("[BT]", msg);
-                if (btDebugLog) {
-                    btDebugLog.classList.remove('hidden');
-                    btDebugLog.innerHTML += `> ${msg}<br>`;
-                    btDebugLog.scrollTop = btDebugLog.scrollHeight;
-                }
-            };
+            const btIcon = document.getElementById('btModalIcon');
 
             if (!navigator.bluetooth) {
-                btStatusText.innerText = "Web Bluetooth not supported.";
+                btStatusText.innerText = "Web Bluetooth is not supported in this browser.";
+                btStatusText.classList.add('text-red-400');
                 return;
             }
 
             try {
                 btBtn.disabled = true;
                 btBtn.innerText = "Searching...";
-                btStatusText.innerText = "Select GAN Timer...";
+                btStatusText.innerText = "Select your GAN Timer in the popup";
+                btIcon.classList.add('bt-pulse');
 
-                if (!aesKey) await initCrypto();
-
-                log("Requesting Device...");
                 btDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: 'GAN' }], 
-                    optionalServices: [0xFFF0, '0000fff0-0000-1000-8000-00805f9b34fb']
+                    filters: [{ namePrefix: 'GAN' }],
+                    optionalServices: ['0000fff0-0000-1000-8000-00805f9b34fb']
                 });
 
-                log(`Selected: ${btDevice.name}`);
-                btStatusText.innerText = "Connecting GATT...";
                 const server = await btDevice.gatt.connect();
-                log("GATT Connected.");
+                const service = await server.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb');
                 
-                await new Promise(r => setTimeout(r, 500));
+                // [FINAL FIX] Use FFF5 for state notifications (Unencrypted)
+                btCharacteristic = await service.getCharacteristic('0000fff5-0000-1000-8000-00805f9b34fb');
 
-                let service = null;
-                try { service = await server.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb'); }
-                catch (e) {
-                    try { service = await server.getPrimaryService(0xFFF0); }
-                    catch (e2) {
-                        const services = await server.getPrimaryServices();
-                        service = services.find(s => s.uuid.includes('fff0'));
-                    }
-                }
+                await btCharacteristic.startNotifications();
+                btCharacteristic.addEventListener('characteristicvaluechanged', handleGanBTData);
 
-                if (!service) throw new Error("Service FFF0 not found");
-                log(`Service OK`);
-                
-                const characteristics = await service.getCharacteristics();
-                btCharacteristic = characteristics.find(c => c.uuid.indexOf('fff1') !== -1);
-                
-                if (!btCharacteristic) throw new Error("No FFF1 found");
-                log("Target: FFF1 (Polling)");
-
-                if (btPollInterval) clearInterval(btPollInterval);
-                btPollInterval = setInterval(async () => {
-                    if (btDevice && btDevice.gatt.connected) {
-                        try {
-                            const val = await btCharacteristic.readValue();
-                            handleGanBTData(val); 
-                        } catch (e) { /* ignore */ }
-                    }
-                }, 50);
-
-                log("Success! Decrypting...");
-                
                 isBtConnected = true;
                 document.getElementById('btStatusIcon').classList.replace('disconnected', 'connected');
                 document.getElementById('btInfoPanel').classList.remove('hidden');
                 document.getElementById('btDeviceName').innerText = btDevice.name;
                 document.getElementById('btDisconnectBtn').classList.remove('hidden');
                 btBtn.classList.add('hidden');
-                btStatusText.innerText = "Connected";
+                btStatusText.innerText = "Timer Connected & Ready";
+                btIcon.classList.remove('bt-pulse');
                 
-                document.getElementById('btRawDisplay').classList.remove('hidden');
                 statusHint.innerText = "Timer Ready (BT)";
                 btDevice.addEventListener('gattserverdisconnected', onBTDisconnected);
 
             } catch (error) {
-                console.error(error);
+                console.error("Bluetooth Connection Error:", error);
                 btStatusText.innerText = "Connection failed";
-                if(btErrorDetail) {
-                    btErrorDetail.innerText = error.message;
-                    btErrorDetail.classList.remove('hidden');
-                }
-                log(`Error: ${error.message}`);
                 btBtn.disabled = false;
                 btBtn.innerText = "Connect Timer";
+                btIcon.classList.remove('bt-pulse');
             }
         }
 
-        async function handleGanBTData(dataView) {
-            if (dataView.target) dataView = dataView.target.value;
-            if (!dataView || dataView.byteLength < 16) return;
+        function handleGanBTData(event) {
+            const data = event.target.value;
+            // Packet Structure: [FE, LEN, CMD, STATE, TIME_MIN, TIME_SEC, TIME_MS_L, TIME_MS_H, ..., CRC_L, CRC_H]
+            // We focus on byte 3 (State) and bytes 4-7 (Time)
+            
+            if (data.byteLength < 4) return; 
 
-            // [NATIVE DECRYPTION]
-            try {
-                // AES-CBC Decrypt using Web Crypto API
-                const decryptedBuffer = await window.crypto.subtle.decrypt(
-                    { name: "AES-CBC", iv: GAN_IV_BYTES },
-                    aesKey,
-                    dataView
-                );
-                
-                const decryptedBytes = new Uint8Array(decryptedBuffer);
-
-                const hex = Array.from(decryptedBytes).map(b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ');
-                const rawEl = document.getElementById('btRawHex');
-                const decEl = document.getElementById('btDecVal');
-                if(rawEl) rawEl.innerText = `RAW: OK (16)`;
-                if(decEl) decEl.innerText = `DEC: ${hex}`;
-
-                const timeMs = decryptedBytes[0] | (decryptedBytes[1] << 8) | (decryptedBytes[2] << 16) | (decryptedBytes[3] << 24);
-                
-                if (timeMs < 0 || timeMs > 36000000) return;
-
-                if (timeMs === 0) {
-                    if (lastBtState !== 1) {
-                        timerEl.innerText = "0.00";
-                        timerEl.classList.remove('text-blue-600', 'ready-to-start');
-                        statusHint.innerText = "Ready (BT)";
-                        isReady = true;
-                        isRunning = false;
-                        lastBtState = 1;
-                    }
-                    lastBtTime = 0;
-                    stableCount = 0;
-                    return;
-                }
-
-                if (timeMs > lastBtTime) {
-                    timerEl.innerText = formatTime(timeMs);
+            const state = data.getUint8(3);
+            
+            // State: 1:GET_SET, 2:HANDS_OFF, 3:RUNNING, 4:STOPPED, 6:HANDS_ON
+            
+            if (state !== lastBtState || state === 4) { // Always process STOPPED to ensure saving
+                if (state === 6) { // HANDS_ON
+                    isReady = false;
+                    timerEl.classList.add('ready-gan');
+                    statusHint.innerText = "Ready!";
+                } else if (state === 2) { // HANDS_OFF (Reset)
+                     timerEl.classList.remove('ready-gan', 'text-blue-600');
+                     statusHint.innerText = "Timer Ready (BT)";
+                } else if (state === 3) { // RUNNING
+                    // [Real-time Sync Logic]
+                    // Start local JS timer to mimic real-time counting
                     if (!isRunning) {
+                        startTime = Date.now();
                         isRunning = true;
+                        if(timerInterval) clearInterval(timerInterval);
+                        timerInterval = setInterval(() => {
+                            timerEl.innerText = formatTime(Date.now() - startTime);
+                        }, 16); // ~60fps
+                        
+                        timerEl.classList.remove('ready-gan');
                         timerEl.classList.add('text-blue-600');
                         statusHint.innerText = "Timing...";
                     }
-                    stableCount = 0;
-                    lastBtState = 3;
-                } else if (timeMs === lastBtTime && isRunning) {
-                    stableCount++;
-                    if (stableCount > 5) {
-                        stopTimer(timeMs);
-                        lastBtState = 4;
-                        stableCount = 0;
+                } else if (state === 4) { // STOPPED
+                    // Stop JS timer and sync with accurate device time
+                    if (isRunning) {
+                        clearInterval(timerInterval);
+                        isRunning = false;
+                        
+                        // Parse accurate time from packet
+                        if (data.byteLength >= 8) {
+                            const min = data.getUint8(4);
+                            const sec = data.getUint8(5);
+                            const msec = data.getUint16(6, true); // Little Endian
+                            const finalMs = (min * 60000) + (sec * 1000) + msec;
+                            
+                            timerEl.innerText = formatTime(finalMs);
+                            stopTimer(finalMs);
+                        }
+                        
+                        timerEl.classList.remove('text-blue-600');
+                        statusHint.innerText = "Finished";
                     }
                 }
-                lastBtTime = timeMs;
-
-            } catch (e) {
-                // Decryption fail
+                lastBtState = state;
             }
         }
 
-        // ... (Disconnect & Helper functions kept same) ...
         function disconnectBT() {
-            if (btPollInterval) clearInterval(btPollInterval);
             if (btDevice && btDevice.gatt.connected) {
                 btDevice.gatt.disconnect();
             }
         }
 
         function onBTDisconnected() {
-            if (btPollInterval) clearInterval(btPollInterval);
             isBtConnected = false;
             lastBtState = null;
             document.getElementById('btStatusIcon').classList.replace('connected', 'disconnected');
@@ -637,45 +540,65 @@
             btBtn.disabled = false;
             btBtn.innerText = "Connect Timer";
             document.getElementById('btStatusText').innerText = "Timer Disconnected";
-            document.getElementById('btErrorDetail').classList.add('hidden');
-            document.getElementById('btRawDisplay').classList.add('hidden');
             statusHint.innerText = "Hold to Ready";
         }
-        
+
         function stopTimer(forcedTime = null) {
-            clearInterval(timerInterval); // Stop any JS timer
+            clearInterval(timerInterval);
             let elapsed = forcedTime !== null ? forcedTime : (Date.now() - startTime);
+            
             if (elapsed > 10) {
                 solves.unshift({
-                    id: Date.now(), time: elapsed, scramble: currentScramble, 
-                    event: currentEvent, sessionId: getCurrentSessionId(), penalty: null,
+                    id: Date.now(), 
+                    time: elapsed, 
+                    scramble: currentScramble, 
+                    event: currentEvent, 
+                    sessionId: getCurrentSessionId(), 
+                    penalty: null,
                     date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "")
                 });
                 timerEl.innerText = formatTime(elapsed);
             }
+            
             isRunning = isReady = false; 
-            updateUI(); generateScramble();
+            updateUI(); 
+            generateScramble();
             statusHint.innerText = isBtConnected ? "Ready (Bluetooth)" : "Hold to Ready"; 
-            timerEl.classList.remove('text-blue-600', 'ready-to-start'); 
+            timerEl.classList.remove('text-blue-600', 'ready-gan'); 
             saveData();
         }
 
         function exportData() {
-            const data = { solves, sessions, settings: { precision, isAo5Mode, currentEvent } };
+            const data = {
+                solves: solves,
+                sessions: sessions,
+                settings: { precision, isAo5Mode, currentEvent }
+            };
             const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = `cubetimer_backup_${new Date().toISOString().slice(0, 10)}.json`;
-            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cubetimer_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
-        function triggerImport() { document.getElementById('importInput').click(); }
+
+        function triggerImport() {
+            document.getElementById('importInput').click();
+        }
+
         function importData(event) {
-            const file = event.target.files[0]; if (!file) return;
+            const file = event.target.files[0];
+            if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
                     if (data.solves && data.sessions) {
-                        solves = data.solves; sessions = data.sessions;
+                        solves = data.solves;
+                        sessions = data.sessions;
                         if (data.settings) {
                             precision = data.settings.precision || 2;
                             isAo5Mode = data.settings.isAo5Mode !== undefined ? data.settings.isAo5Mode : true;
@@ -683,34 +606,50 @@
                             precisionToggle.checked = (precision === 3);
                             avgModeToggle.checked = isAo5Mode;
                         }
-                        saveData(); location.reload(); 
+                        saveData();
+                        location.reload(); 
+                    } else {
+                        throw new Error("Invalid format");
                     }
-                } catch (err) { alert("Invalid JSON"); }
+                } catch (err) {
+                    const msg = document.createElement('div');
+                    msg.innerHTML = `<div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"><div class="bg-white rounded-2xl p-6 w-full max-w-xs shadow-2xl text-center"><p class="text-sm font-bold text-red-500 mb-6">Failed to restore data. Invalid JSON format.</p><button onclick="this.parentElement.parentElement.remove()" class="w-full py-3 bg-slate-800 text-white rounded-xl font-bold text-sm">Close</button></div></div>`;
+                    document.body.appendChild(msg);
+                }
             };
             reader.readAsText(file);
         }
+
         function saveData() {
-            const data = { solves, sessions, settings: { precision, isAo5Mode, currentEvent } };
+            const data = {
+                solves: solves,
+                sessions: sessions,
+                settings: { precision, isAo5Mode, currentEvent }
+            };
             localStorage.setItem('cubeTimerData_v4', JSON.stringify(data));
         }
+
         function loadData() {
             const saved = localStorage.getItem('cubeTimerData_v4');
             if (saved) {
                 try {
                     const data = JSON.parse(saved);
-                    solves = data.solves || []; sessions = data.sessions || {};
+                    solves = data.solves || [];
+                    sessions = data.sessions || {};
                     if (data.settings) {
                         precision = data.settings.precision || 2;
                         isAo5Mode = data.settings.isAo5Mode !== undefined ? data.settings.isAo5Mode : true;
                         currentEvent = data.settings.currentEvent || '333';
                         precisionToggle.checked = (precision === 3);
                         avgModeToggle.checked = isAo5Mode;
-                        const conf = configs[currentEvent]; if (conf) switchCategory(conf.cat, false);
+                        const conf = configs[currentEvent];
+                        if (conf) switchCategory(conf.cat, false);
                     }
-                } catch (e) { }
+                } catch (e) { console.error("Load failed", e); }
             }
             initSessionIfNeeded(currentEvent);
         }
+
         function initSessionIfNeeded(eventId) {
             if (!sessions[eventId] || sessions[eventId].length === 0) {
                 sessions[eventId] = [{ id: Date.now(), name: "Session 1", isActive: true }];
@@ -718,6 +657,7 @@
                 sessions[eventId][0].isActive = true;
             }
         }
+
         function getCurrentSessionId() {
             const eventSessions = sessions[currentEvent] || [];
             const active = eventSessions.find(s => s.isActive);
@@ -725,15 +665,18 @@
             initSessionIfNeeded(currentEvent);
             return sessions[currentEvent][0].id;
         }
+
         function initCube(n = 3) {
             cubeState = { n };
             ['U','D','L','R','F','B'].forEach(f => cubeState[f] = Array(n*n).fill(COLORS[f]));
         }
+
         function rotateFaceMatrix(fName) {
             const n = cubeState.n; const f = cubeState[fName]; const next = Array(n*n);
             for(let r=0; r<n; r++) for(let c=0; c<n; c++) next[c*n + (n-1-r)] = f[r*n + c];
             cubeState[fName] = next;
         }
+
         function applyMove(move) {
             const n = cubeState.n; if(!n) return;
             let base = move[0], layer = 1;
@@ -755,6 +698,7 @@
                 }
             }
         }
+
         function drawCube() {
             const n = cubeState.n;
             if(!n || configs[currentEvent]?.cat === 'blind') { 
@@ -763,6 +707,7 @@
                 noVisualizerMsg.classList.remove('hidden'); 
                 return; 
             }
+            
             visualizerCanvas.style.display='block'; 
             noVisualizerMsg.classList.add('hidden');
             const ctx = visualizerCanvas.getContext('2d');
@@ -780,7 +725,12 @@
             drawF('B', offX+3*(faceS+gap), offY+faceS+gap);
             drawF('D', offX+faceS+gap, offY+2*(faceS+gap));
         }
-        window.toggleToolsMenu = (e) => { e.stopPropagation(); document.getElementById('toolsDropdown').classList.toggle('show'); };
+
+        window.toggleToolsMenu = (e) => {
+            e.stopPropagation();
+            document.getElementById('toolsDropdown').classList.toggle('show');
+        };
+
         window.selectTool = (tool) => {
             activeTool = tool;
             const isBlind = configs[currentEvent]?.cat === 'blind';
@@ -790,9 +740,14 @@
             document.querySelectorAll('.tool-option').forEach(opt => opt.classList.remove('active'));
             document.getElementById(`tool-opt-${tool}`).classList.add('active');
             document.getElementById('toolsDropdown').classList.remove('show');
-            if (tool === 'graph') renderHistoryGraph(); else if (tool === 'scramble') drawCube();
+            if (tool === 'graph') renderHistoryGraph();
+            else if (tool === 'scramble') drawCube();
         };
-        window.addEventListener('click', () => { document.getElementById('toolsDropdown').classList.remove('show'); });
+
+        window.addEventListener('click', () => {
+            document.getElementById('toolsDropdown').classList.remove('show');
+        });
+
         function renderHistoryGraph() {
             if (activeTool !== 'graph') return;
             const sid = getCurrentSessionId();
@@ -811,6 +766,7 @@
             }).join(' ');
             polyline.setAttribute('points', points);
         }
+
         function switchCategory(cat, autoSelectFirst = true) {
             if(isRunning) return;
             document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
@@ -818,7 +774,8 @@
             const groups = ['standard', 'nonstandard', 'blind'];
             groups.forEach(g => {
                 const el = document.getElementById(`group-${g}`);
-                if (g === cat) { el.classList.remove('hidden'); el.classList.add('flex'); } else { el.classList.add('hidden'); el.classList.remove('flex'); }
+                if (g === cat) { el.classList.remove('hidden'); el.classList.add('flex'); }
+                else { el.classList.add('hidden'); el.classList.remove('flex'); }
             });
             if (autoSelectFirst) {
                 const targetGroup = document.getElementById(`group-${cat}`);
@@ -826,6 +783,7 @@
                 if (firstButton) changeEvent(firstButton.id.replace('tab-', ''));
             }
         }
+
         function changeEvent(e) {
             if(isRunning) return;
             currentEvent = e;
@@ -833,13 +791,38 @@
             initSessionIfNeeded(e);
             document.querySelectorAll('.event-tab').forEach(t => t.classList.remove('active'));
             const activeTab = document.getElementById(`tab-${e}`); if (activeTab) activeTab.classList.add('active');
-            if (conf.cat === 'blind') { activeTool = 'graph'; selectTool('graph'); } else { if (activeTool === 'graph') selectTool('graph'); else selectTool('scramble'); }
-            if (['666', '777', '333bf', '444bf', '555bf', '333mbf'].includes(e)) { isAo5Mode = false; avgModeToggle.checked = false; } else { isAo5Mode = true; avgModeToggle.checked = true; }
-            if (currentEvent === '333mbf') { scrambleEl.classList.add('hidden'); mbfInputArea.classList.remove('hidden'); } else { scrambleEl.classList.remove('hidden'); mbfInputArea.classList.add('hidden'); generateScramble(); }
+            
+            if (conf.cat === 'blind') {
+                activeTool = 'graph'; 
+                selectTool('graph');
+            } else {
+                if (activeTool === 'graph') selectTool('graph');
+                else selectTool('scramble');
+            }
+
+            if (['666', '777', '333bf', '444bf', '555bf', '333mbf'].includes(e)) { 
+                isAo5Mode = false; avgModeToggle.checked = false; 
+            } else { 
+                isAo5Mode = true; avgModeToggle.checked = true; 
+            }
+
+            // Multi-Blind UI specific
+            if (currentEvent === '333mbf') {
+                scrambleEl.classList.add('hidden');
+                mbfInputArea.classList.remove('hidden');
+            } else {
+                scrambleEl.classList.remove('hidden');
+                mbfInputArea.classList.add('hidden');
+                generateScramble(); 
+            }
+            
             updateUI(); timerEl.innerText = (0).toFixed(precision); saveData();
         }
+
         function generate3bldScrambleText() {
-            const conf = configs['333bf']; let res = []; let last = "";
+            const conf = configs['333bf'];
+            let res = [];
+            let last = "";
             for (let i = 0; i < conf.len; i++) {
                 let m; do { m = conf.moves[Math.floor(Math.random() * conf.moves.length)]; } while (m[0] === last[0]);
                 res.push(m + suffixes[Math.floor(Math.random() * 3)]); last = m;
@@ -852,11 +835,10 @@
             }
             return res.join(" ");
         }
-        // ... (Scramble logic kept same) ...
+
         function generateScramble() {
             const conf = configs[currentEvent]; if (!conf || currentEvent === '333mbf') return;
             let res = [];
-            // ... (Omitting full scramble logic for brevity, kept same as before) ...
             if (currentEvent === 'minx') {
                 for (let i = 0; i < 7; i++) {
                     let line = []; for (let j = 0; j < 10; j++) line.push((j%2===0?"R":"D") + (Math.random()<0.5?"++":"--"));
@@ -864,44 +846,61 @@
                 }
                 currentScramble = res.join("\n");
             } else if (currentEvent === 'clock') {
-                 // ... clock ...
-                 ["UR","DR","DL","UL","U","R","D","L","ALL"].forEach(d => { const v = Math.floor(Math.random()*12)-5; res.push(`${d}${v>=0?'+':''}${v}`); });
+                ["UR","DR","DL","UL","U","R","D","L","ALL"].forEach(d => { const v = Math.floor(Math.random()*12)-5; res.push(`${d}${v>=0?'+':''}${v}`); });
                 res.push("y2"); ["U","R","D","L","ALL"].forEach(d => { const v = Math.floor(Math.random()*12)-5; res.push(`${d}${v>=0?'+':''}${v}`); });
                 let pins = []; ["UR","DR","DL","UL"].forEach(p => { if(Math.random()<0.5) pins.push(p); });
                 if(pins.length) res.push(pins.join(" ")); currentScramble = res.join(" ");
             } else if (currentEvent === 'sq1') {
-                 // ... sq1 ...
-                 for (let i = 0; i < conf.len; i++) {
+                for (let i = 0; i < conf.len; i++) {
                     let u = Math.floor(Math.random()*12)-5, d = Math.floor(Math.random()*12)-5;
                     if (u===0 && d===0) { i--; continue; } res.push(`(${u},${d})`);
                 }
                 currentScramble = res.join(" / ");
             } else if (['pyra', 'skewb'].includes(currentEvent)) {
-                 // ... pyra/skewb ...
-                 let last=""; for (let i = 0; i < conf.len; i++) {
+                let last=""; for (let i = 0; i < conf.len; i++) {
                     let m; do { m = conf.moves[Math.floor(Math.random()*conf.moves.length)]; } while(m===last);
                     res.push(m + (Math.random()<0.5?"'":"")); last=m;
                 }
                 if(currentEvent === 'pyra') conf.tips.forEach(t => { const r=Math.floor(Math.random()*3); if(r===1) res.push(t); else if(r===2) res.push(t+"'"); });
                 currentScramble = res.join(" ");
             } else {
-                 // ... Standard ...
-                 let lastAxis = -1; let secondLastAxis = -1; let lastMoveBase = "";
-                 const getMoveAxis = (m) => {
-                    const c = m[0]; if ("UD".includes(c)) return 0; if ("LR".includes(c)) return 1; if ("FB".includes(c)) return 2; return -1;
+                let lastAxis = -1;
+                let secondLastAxis = -1;
+                let lastMoveBase = "";
+                
+                const getMoveAxis = (m) => {
+                    const c = m[0]; // First char usually defines axis for NxN standard notation
+                    if ("UD".includes(c)) return 0;
+                    if ("LR".includes(c)) return 1;
+                    if ("FB".includes(c)) return 2;
+                    return -1;
                 };
+
                 for (let i = 0; i < conf.len; i++) {
                     let move, axis, base;
                     while (true) {
                         move = conf.moves[Math.floor(Math.random() * conf.moves.length)];
-                        axis = getMoveAxis(move); base = move[0]; 
+                        axis = getMoveAxis(move);
+                        base = move[0]; 
+
+                        // 1. Same base check (e.g. R followed by R)
                         if (base === lastMoveBase) continue;
+
+                        // 2. Axis check (Avoid 3 moves on same axis like F B F)
+                        // If current axis is same as last axis (e.g. F followed by B), 
+                        // check if the one before last was ALSO same axis.
                         if (axis !== -1 && axis === lastAxis && axis === secondLastAxis) continue;
+                        
                         break;
                     }
+                    
                     res.push(move + suffixes[Math.floor(Math.random() * 3)]);
-                    secondLastAxis = lastAxis; lastAxis = axis; lastMoveBase = base;
+                    
+                    secondLastAxis = lastAxis;
+                    lastAxis = axis;
+                    lastMoveBase = base;
                 }
+
                 if (currentEvent === '333bf') {
                     const wideMoveCount = Math.floor(Math.random() * 2) + 1;
                     for (let i = 0; i < wideMoveCount; i++) {
@@ -929,49 +928,126 @@
         }
 
         window.generateMbfScrambles = () => {
-            const count = parseInt(mbfCubeInput.value); if (!count || count < 2 || count > 100) return;
+            const count = parseInt(mbfCubeInput.value);
+            if (!count || count < 2 || count > 100) return;
+            
             const listContainer = document.getElementById('mbfScrambleList');
             document.getElementById('mbfCubeCountDisplay').innerText = `${count} Cubes`;
             listContainer.innerHTML = "";
+            
             for (let i = 1; i <= count; i++) {
                 const scr = generate3bldScrambleText();
-                listContainer.innerHTML += `<div class="p-4 bg-slate-50 border border-slate-100 rounded-2xl"><div class="flex items-center gap-2 mb-2"><span class="w-6 h-6 flex items-center justify-center bg-blue-600 text-white rounded-full text-[10px] font-bold">#${i}</span><span class="text-[10px] font-black uppercase text-slate-400">Scramble</span></div><p class="font-bold text-slate-600 leading-relaxed scramble-text">${scr}</p></div>`;
+                listContainer.innerHTML += `
+                    <div class="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="w-6 h-6 flex items-center justify-center bg-blue-600 text-white rounded-full text-[10px] font-bold">#${i}</span>
+                            <span class="text-[10px] font-black uppercase text-slate-400">Scramble</span>
+                        </div>
+                        <p class="font-bold text-slate-600 leading-relaxed scramble-text">${scr}</p>
+                    </div>
+                `;
             }
             document.getElementById('mbfScrambleOverlay').classList.add('active');
             currentScramble = `Multi-Blind (${count} Cubes Attempt)`;
         };
+
         window.closeMbfScrambleModal = () => document.getElementById('mbfScrambleOverlay').classList.remove('active');
+        
         window.copyMbfText = () => {
             const texts = Array.from(document.querySelectorAll('.scramble-text')).map((el, i) => `${i+1}. ${el.innerText}`).join('\n\n');
             const countText = document.getElementById('mbfCubeCountDisplay').innerText;
             const fullText = `[CubeTimer] Multi-Blind Scrambles (${countText})\n\n${texts}`;
+            
             const textArea = document.createElement("textarea"); textArea.value = fullText; document.body.appendChild(textArea); textArea.select();
-            document.execCommand('copy'); document.body.removeChild(textArea);
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            
             const btn = document.querySelector('[onclick="copyMbfText()"]');
-            const original = btn.innerText; btn.innerText = "Copied!"; setTimeout(() => btn.innerText = original, 2000);
+            const original = btn.innerText; btn.innerText = "Copied!";
+            setTimeout(() => btn.innerText = original, 2000);
         };
+
         function formatTime(ms) {
             let s = ms/1000; if(s < 60) return s.toFixed(precision);
             const m = Math.floor(s/60); const sec = (s%60).toFixed(precision).padStart(precision+3, '0');
             return `${m}:${sec}`;
         }
 
-        // Added missing functions:
+        function updateUI() {
+            const sid = getCurrentSessionId();
+            let filtered = solves.filter(s => s.event === currentEvent && s.sessionId === sid);
+            const activeSession = (sessions[currentEvent] || []).find(s => s.isActive);
+            if (activeSession) document.getElementById('currentSessionNameDisplay').innerText = activeSession.name;
+            
+            historyList.innerHTML = filtered.map(s => `
+                <div class="bg-slate-50 border border-slate-100 p-3 rounded-xl flex justify-between items-center group cursor-pointer hover:bg-white hover:shadow-sm transition-all" onclick="showSolveDetails(${s.id})">
+                    <span class="font-bold text-slate-700 text-sm">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span>
+                    <button onclick="event.stopPropagation(); deleteSolve(${s.id})" class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            `).join('') || '<div class="text-center py-10 text-slate-300 text-[11px] italic">No solves yet</div>';
+
+            solveCountEl.innerText = filtered.length;
+            if (isAo5Mode) { labelPrimaryAvg.innerText = "Ao5"; displayPrimaryAvg.innerText = calculateAvg(filtered, 5); } 
+            else { labelPrimaryAvg.innerText = "Mo3"; displayPrimaryAvg.innerText = calculateAvg(filtered, 3, true); }
+            displayAo12.innerText = calculateAvg(filtered, 12);
+            let valid = filtered.filter(s=>s.penalty!=='DNF').map(s=>s.penalty==='+2'?s.time+2000:s.time);
+            sessionAvgEl.innerText = valid.length ? formatTime(valid.reduce((a,b)=>a+b,0)/valid.length) : "-";
+            bestSolveEl.innerText = valid.length ? formatTime(Math.min(...valid)) : "-";
+            if (activeTool === 'graph') renderHistoryGraph();
+        }
+
+        function calculateAvg(list, count, mean=false) {
+            if(list.length < count) return "-";
+            let slice = list.slice(0, count); let dnfC = slice.filter(s=>s.penalty==='DNF').length;
+            if(dnfC >= (mean?1:2)) return "DNF";
+            let nums = slice.map(s => s.penalty==='DNF'?Infinity:(s.penalty==='+2'?s.time+2000:s.time));
+            if(mean) return (nums.reduce((a,b)=>a+b,0)/count/1000).toFixed(precision);
+            nums.sort((a,b)=>a-b); nums.pop(); nums.shift();
+            return (nums.reduce((a,b)=>a+b,0)/nums.length/1000).toFixed(precision);
+        }
+
+        function startTimer() {
+            startTime = Date.now(); isRunning = true;
+            timerInterval = setInterval(()=> timerEl.innerText = formatTime(Date.now()-startTime), 10);
+            statusHint.innerText = "Timing..."; timerEl.classList.add('text-blue-600');
+        }
+
+        function togglePenalty(p) {
+            if(!solves.length || isRunning) return;
+            const sid = getCurrentSessionId();
+            const currentList = solves.filter(s => s.event === currentEvent && s.sessionId === sid);
+            if (!currentList.length) return;
+            const targetSolve = currentList[0];
+            targetSolve.penalty = (targetSolve.penalty===p)?null:p;
+            timerEl.innerText = targetSolve.penalty==='DNF'?'DNF':formatTime(targetSolve.penalty==='+2'?targetSolve.time+2000:targetSolve.time) + (targetSolve.penalty==='+2'?'+':'');
+            updateUI(); updatePenaltyBtns(targetSolve); saveData();
+        }
+
         function updatePenaltyBtns(s) {
             plus2Btn.className = `penalty-btn ${s?.penalty==='+2'?'active-plus2':'inactive'}`;
             dnfBtn.className = `penalty-btn ${s?.penalty==='DNF'?'active-dnf':'inactive'}`;
         }
         function resetPenalty() { updatePenaltyBtns(null); }
+        function deleteSolve(id) { solves = solves.filter(s => s.id !== id); updateUI(); saveData(); }
 
-        window.openSessionModal = () => { 
-            const el = document.getElementById('sessionOverlay');
-            if(el) {
-                el.classList.add('active');
-                renderSessionList();
-            } else {
-                console.error("Session overlay not found!");
-            }
-        };
+        function handleStart(e) {
+            if (isBtConnected) return; 
+            if(e && e.cancelable) e.preventDefault();
+            if(isManualMode || isRunning) { if(isRunning) stopTimer(); return; }
+            timerEl.classList.add('holding-status');
+            holdTimer = setTimeout(()=> { isReady=true; timerEl.classList.replace('holding-status','ready-to-start'); statusHint.innerText="Ready!"; }, 200);
+        }
+        function handleEnd(e) {
+            if (isBtConnected) return; 
+            if(e && e.cancelable) e.preventDefault();
+            clearTimeout(holdTimer);
+            if(!isRunning && isReady) startTimer();
+            else { timerEl.classList.remove('holding-status','ready-to-start'); isReady=false; statusHint.innerText="Hold to Ready"; }
+        }
+
+        window.openSessionModal = () => { document.getElementById('sessionOverlay').classList.add('active'); renderSessionList(); };
         window.closeSessionModal = () => { document.getElementById('sessionOverlay').classList.remove('active'); document.getElementById('newSessionName').value = ""; editingSessionId = null; };
 
         function renderSessionList() {
@@ -1019,7 +1095,112 @@
             renderSessionList(); updateUI(); saveData();
         };
 
-        // Other modal logic & event listeners
+        window.openAvgShare = (type) => {
+            const sid = getCurrentSessionId();
+            const count = (type === 'primary') ? (isAo5Mode ? 5 : 3) : 12;
+            const filtered = solves.filter(s => s.event === currentEvent && s.sessionId === sid);
+            if (filtered.length < count) return;
+            const list = filtered.slice(0, count);
+            const avgValue = calculateAvg(filtered, count, (type === 'primary' && !isAo5Mode));
+            const dateStr = list[0].date || new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "");
+            document.getElementById('shareDate').innerText = `Date : ${dateStr}.`;
+            document.getElementById('shareLabel').innerText = (type === 'primary' && !isAo5Mode) ? `Mean of 3 :` : `Average of ${count} :`;
+            document.getElementById('shareAvg').innerText = avgValue;
+            const listContainer = document.getElementById('shareList');
+            listContainer.innerHTML = list.map((s, idx) => `<div class="flex flex-col p-3 bg-slate-50 rounded-xl border border-slate-100"><div class="flex items-center gap-3"><span class="text-[10px] font-bold text-slate-400 w-4">${count - idx}.</span><span class="font-bold text-slate-800 text-sm min-w-[50px]">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span><span class="text-[10px] text-slate-400 font-medium italic truncate flex-grow">${s.scramble}</span></div></div>`).reverse().join('');
+            document.getElementById('avgShareOverlay').classList.add('active');
+        };
+
+        window.openSingleShare = () => {
+            const s = solves.find(x => x.id === selectedSolveId); if (!s) return;
+            closeModal();
+            const dateStr = s.date || new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "");
+            document.getElementById('shareDate').innerText = `Date : ${dateStr}.`;
+            document.getElementById('shareLabel').innerText = `Single :`;
+            document.getElementById('shareAvg').innerText = s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time) + (s.penalty==='+2'?'+':'');
+            const listContainer = document.getElementById('shareList');
+            listContainer.innerHTML = `<div class="flex flex-col p-3 bg-slate-50 rounded-xl border border-slate-100"><div class="flex items-center gap-3"><span class="text-[10px] font-bold text-slate-400 w-4">1.</span><span class="font-bold text-slate-800 text-sm min-w-[50px]">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span><span class="text-[10px] text-slate-400 font-medium italic truncate flex-grow">${s.scramble}</span></div></div>`;
+            document.getElementById('avgShareOverlay').classList.add('active');
+        };
+
+        window.closeAvgShare = () => document.getElementById('avgShareOverlay').classList.remove('active');
+
+        window.copyShareText = () => {
+            const date = document.getElementById('shareDate').innerText;
+            const avgLabel = document.getElementById('shareLabel').innerText;
+            const avgVal = document.getElementById('shareAvg').innerText;
+            const isSingle = avgLabel.includes('Single');
+            let text = `[CubeTimer]\n\n${date}\n\n${avgLabel} ${avgVal}\n\n`;
+            if (isSingle) {
+                const s = solves.find(x => x.id === selectedSolveId);
+                if (s) text += `1. ${avgVal}   ${s.scramble}\n`;
+            } else {
+                const count = avgLabel.includes('5') ? 5 : (avgLabel.includes('3') ? 3 : 12);
+                const sid = getCurrentSessionId();
+                const filtered = solves.filter(s => s.event === currentEvent && s.sessionId === sid).slice(0, count);
+                filtered.reverse().forEach((s, i) => { text += `${i+1}. ${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}   ${s.scramble}\n`; });
+            }
+            const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select();
+            try {
+                document.execCommand('copy');
+                const btn = document.querySelector('[onclick="copyShareText()"]'); const original = btn.innerHTML;
+                btn.innerHTML = "Copied!"; btn.classList.add('bg-green-600');
+                setTimeout(() => { btn.innerHTML = original; btn.classList.remove('bg-green-600'); }, 2000);
+            } catch (err) { console.error('Copy failed', err); }
+            document.body.removeChild(textArea);
+        };
+
+        window.addEventListener('keydown', e => {
+            if(editingSessionId || document.activeElement.tagName === 'INPUT') {
+                if(e.code === 'Enter' && document.activeElement === manualInput) {
+                    // Manual input logic here
+                } else {
+                    return;
+                }
+            }
+            
+            if(e.code==='Space' && !e.repeat) { e.preventDefault(); handleStart(); }
+            if(isManualMode && e.code==='Enter') {
+                let v = parseFloat(manualInput.value);
+                if(v>0) { 
+                    solves.unshift({
+                        id:Date.now(), time:v*1000, scramble:currentScramble, event:currentEvent, sessionId: getCurrentSessionId(), penalty:null,
+                        date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "")
+                    }); 
+                    manualInput.value=""; updateUI(); generateScramble(); saveData(); 
+                }
+            }
+        });
+        window.addEventListener('keyup', e => { if(e.code==='Space' && !editingSessionId) handleEnd(); });
+
+        const interactiveArea = document.getElementById('timerInteractiveArea');
+        interactiveArea.addEventListener('touchstart', handleStart, { passive: false });
+        interactiveArea.addEventListener('touchend', handleEnd, { passive: false });
+
+        window.openSettings = () => { document.getElementById('settingsOverlay').classList.add('active'); setTimeout(()=>document.getElementById('settingsModal').classList.remove('scale-95','opacity-0'), 10); };
+        window.closeSettings = () => { document.getElementById('settingsModal').classList.add('scale-95','opacity-0'); setTimeout(()=>document.getElementById('settingsOverlay').classList.remove('active'), 200); saveData(); };
+        window.handleOutsideSettingsClick = (e) => { if(e.target === document.getElementById('settingsOverlay')) closeSettings(); };
+
+        window.showSolveDetails = (id) => {
+            let s = solves.find(x=>x.id===id); if(!s) return;
+            selectedSolveId = id;
+            document.getElementById('modalTime').innerText = s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time);
+            document.getElementById('modalEvent').innerText = s.event;
+            document.getElementById('modalScramble').innerText = s.scramble;
+            document.getElementById('modalOverlay').classList.add('active');
+        };
+        window.closeModal = () => document.getElementById('modalOverlay').classList.remove('active');
+        window.useThisScramble = () => { let s=solves.find(x=>x.id===selectedSolveId); if(s){currentScramble=s.scramble; scrambleEl.innerText=currentScramble; closeModal();} };
+
+        precisionToggle.onchange = e => { precision = e.target.checked?3:2; updateUI(); timerEl.innerText=(0).toFixed(precision); saveData(); };
+        avgModeToggle.onchange = e => { isAo5Mode = e.target.checked; updateUI(); saveData(); };
+        manualEntryToggle.onchange = e => {
+            isManualMode = e.target.checked;
+            timerEl.classList.toggle('hidden', isManualMode);
+            manualInput.classList.toggle('hidden', !isManualMode);
+            statusHint.innerText = isManualMode ? "TYPE TIME & ENTER" : "HOLD TO READY";
+        };
+
         document.getElementById('clearHistoryBtn').onclick = () => { 
             const sid = getCurrentSessionId(); 
             const msg = `Clear all history for this session?`;
@@ -1028,11 +1209,14 @@
             customConfirm.innerHTML = `<div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"><div class="bg-white rounded-2xl p-6 w-full max-w-xs shadow-2xl"><p class="text-sm font-bold text-slate-700 mb-6 text-center">${msg}</p><div class="flex gap-2"><button id="cancelClear" class="flex-1 py-3 text-slate-400 font-bold text-sm">Cancel</button><button id="confirmClear" class="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-sm">Clear All</button></div></div></div>`;
             document.body.appendChild(customConfirm);
             document.getElementById('cancelClear').onclick = () => { document.body.removeChild(document.getElementById('clearConfirmModal')); };
+            
             document.getElementById('confirmClear').onclick = () => { 
                 solves = solves.filter(s => !(s.event === currentEvent && s.sessionId === sid)); 
-                updateUI(); saveData(); 
+                updateUI(); 
+                saveData(); 
                 document.body.removeChild(document.getElementById('clearConfirmModal')); 
-                timerEl.innerText = (0).toFixed(precision); resetPenalty(); 
+                timerEl.innerText = (0).toFixed(precision); 
+                resetPenalty(); 
             };
         };
 
