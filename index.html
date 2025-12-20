@@ -198,7 +198,8 @@
     </div>
 
     <!-- Main Content -->
-    <main class="main-container flex flex-col md:flex-row p-4 gap-6 flex-grow overflow-hidden">
+    <!-- Modified overflow class here for mobile scrolling -->
+    <main class="main-container flex flex-col md:flex-row p-4 gap-6 flex-grow overflow-y-auto md:overflow-hidden">
         <div class="flex-grow flex flex-col items-center justify-between h-full order-1">
             <div class="w-full space-y-6">
                 <!-- Category Select -->
@@ -478,9 +479,9 @@
             // 상태값 매핑
             // 1: GET_SET, 2: HANDS_OFF, 3: RUNNING, 4: STOPPED, 6: HANDS_ON
             
-            // [Fix] 리셋 동기화: 대기 상태(2)이거나 멈춤(4) 상태면 타이머 시간을 화면에 동기화
+            // [Fix] 리셋 동기화: 준비(1), 대기(2), 멈춤(4) 상태면 타이머 시간을 화면에 동기화
             // 단, 멈춤(4) 상태에서 앱 내 타이머가 돌고 있을 때(isRunning)는 stopTimer 로직을 타야 하므로 제외
-            if ((state === 2 || state === 4) && !isRunning && data.byteLength >= 8) {
+            if ((state === 1 || state === 2 || state === 4) && !isRunning && data.byteLength >= 8) {
                 const min = data.getUint8(4);
                 const sec = data.getUint8(5);
                 const msec = data.getUint16(6, true);
