@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Quicksand', sans-serif; background-color: #f8fafc; color: #334155; touch-action: manipulation; }
-        .timer-display { font-family: 'JetBrains+Mono', monospace; font-size: clamp(4rem, 18vw, 10rem); font-weight: 700; line-height: 1; }
+        .timer-display { font-family: 'JetBrains+Mono', monospace; font-size: clamp(4rem, 18vw, 10rem); font-weight: 700; line-height: 1; transition: color 0.1s; }
         .manual-input { font-family: 'JetBrains+Mono', monospace; font-size: clamp(2.5rem, 12vw, 6rem); background: transparent; border: none; outline: none; text-align: center; width: 100%; color: #3b82f6; }
         .modal-overlay { background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); display: none; position: fixed; inset: 0; z-index: 50; align-items: center; justify-content: center; padding: 1rem; }
         .modal-overlay.active { display: flex; }
@@ -39,8 +39,11 @@
         .tool-option.active { color: #3b82f6; background: #eff6ff; }
         .category-btn.active { background-color: #3b82f6; color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); }
         .event-tab.active { background-color: #3b82f6; color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); }
-        /* GAN Ready State Color (Green) */
-        .ready-gan { color: #10b981 !important; transform: scale(1.02); } 
+        
+        /* Status Colors - Important to override Tailwind utilities */
+        .text-ready { color: #10b981 !important; transform: scale(1.02); } /* Green */
+        .text-hold { color: #ef4444 !important; } /* Red */
+        .text-running { color: #2563eb !important; } /* Blue */
     </style>
 </head>
 <body class="h-screen flex flex-col bg-slate-50 overflow-hidden">
@@ -253,7 +256,7 @@
             <!-- Timer Area -->
             <div id="timerContainer" class="flex flex-col items-center justify-center flex-grow w-full select-none">
                 <div id="timerInteractiveArea" class="rounded-3xl transition-colors hover:bg-slate-100/30">
-                    <div id="timerDisplayContainer" class="w-full flex justify-center">
+                    <div id="timerDisplayContainer" class="w-full flex justify-center flex-col items-center">
                         <div id="timer" class="timer-display text-slate-800 transition-all duration-100">0.00</div>
                         <input type="text" id="manualInput" class="manual-input hidden" placeholder="0.00">
                     </div>
@@ -478,10 +481,12 @@
             if (state !== lastBtState || state === 4) { // Always process STOPPED to ensure saving
                 if (state === 6) { // HANDS_ON
                     isReady = false;
-                    timerEl.classList.add('ready-gan');
+                    timerEl.classList.add('text-ready'); // 초록색
                     statusHint.innerText = "Ready!";
-                } else if (state === 2) { // HANDS_OFF (Reset)
-                     timerEl.classList.remove('ready-gan', 'text-blue-600');
+                } else if (state === 1) { // GET_SET (Ready to start)
+                    // Do nothing special, keep green?
+                } else if (state === 2) { // HANDS_OFF (Reset/Idle)
+                     timerEl.classList.remove('text-ready', 'text-running');
                      statusHint.innerText = "Timer Ready (BT)";
                 } else if (state === 3) { // RUNNING
                     // [Real-time Sync Logic]
@@ -494,8 +499,8 @@
                             timerEl.innerText = formatTime(Date.now() - startTime);
                         }, 16); // ~60fps
                         
-                        timerEl.classList.remove('ready-gan');
-                        timerEl.classList.add('text-blue-600');
+                        timerEl.classList.remove('text-ready');
+                        timerEl.classList.add('text-running');
                         statusHint.innerText = "Timing...";
                     }
                 } else if (state === 4) { // STOPPED
@@ -515,7 +520,7 @@
                             stopTimer(finalMs);
                         }
                         
-                        timerEl.classList.remove('text-blue-600');
+                        timerEl.classList.remove('text-running');
                         statusHint.innerText = "Finished";
                     }
                 }
@@ -564,7 +569,7 @@
             updateUI(); 
             generateScramble();
             statusHint.innerText = isBtConnected ? "Ready (Bluetooth)" : "Hold to Ready"; 
-            timerEl.classList.remove('text-blue-600', 'ready-gan'); 
+            timerEl.classList.remove('text-running', 'text-ready'); 
             saveData();
         }
 
@@ -968,9 +973,44 @@
         };
 
         function formatTime(ms) {
-            let s = ms/1000; if(s < 60) return s.toFixed(precision);
-            const m = Math.floor(s/60); const sec = (s%60).toFixed(precision).padStart(precision+3, '0');
-            return `${m}:${sec}`;
+            // Ensure ms is treated as a number
+            ms = Number(ms);
+            if (isNaN(ms)) return "0.00";
+
+            if (precision === 2) {
+                // Truncate to 2 decimal places (floor)
+                // e.g. 3226 ms -> 322 cs -> 3.22 s
+                const cs = Math.floor(ms / 10);
+                
+                const m = Math.floor(cs / 6000);
+                const remCs = cs % 6000;
+                const s = Math.floor(remCs / 100);
+                const d = remCs % 100;
+
+                const dStr = d.toString().padStart(2, '0');
+                const sStr = s.toString().padStart(2, '0');
+
+                if (m === 0) {
+                    return `${s}.${dStr}`;
+                } else {
+                    return `${m}:${sStr}.${dStr}`;
+                }
+            } else {
+                // Precision 3
+                const m = Math.floor(ms / 60000);
+                const remMs = ms % 60000;
+                const s = Math.floor(remMs / 1000);
+                const d = remMs % 1000;
+
+                const dStr = d.toString().padStart(3, '0');
+                const sStr = s.toString().padStart(2, '0');
+
+                if (m === 0) {
+                    return `${s}.${dStr}`;
+                } else {
+                    return `${m}:${sStr}.${dStr}`;
+                }
+            }
         }
 
         function updateUI() {
@@ -1036,15 +1076,29 @@
             if (isBtConnected) return; 
             if(e && e.cancelable) e.preventDefault();
             if(isManualMode || isRunning) { if(isRunning) stopTimer(); return; }
-            timerEl.classList.add('holding-status');
-            holdTimer = setTimeout(()=> { isReady=true; timerEl.classList.replace('holding-status','ready-to-start'); statusHint.innerText="Ready!"; }, 200);
+            
+            // Visual feedback immediately on press
+            timerEl.style.color = '#ef4444'; // Red
+            timerEl.classList.add('holding-status'); // Add class for animations if any
+            
+            holdTimer = setTimeout(()=> { 
+                isReady=true; 
+                timerEl.style.color = '#10b981'; // Green
+                timerEl.classList.replace('holding-status','ready-to-start'); 
+                statusHint.innerText="Ready!"; 
+            }, 300); 
         }
         function handleEnd(e) {
             if (isBtConnected) return; 
             if(e && e.cancelable) e.preventDefault();
             clearTimeout(holdTimer);
             if(!isRunning && isReady) startTimer();
-            else { timerEl.classList.remove('holding-status','ready-to-start'); isReady=false; statusHint.innerText="Hold to Ready"; }
+            else { 
+                timerEl.style.color = ''; // Reset color
+                timerEl.classList.remove('holding-status','ready-to-start'); 
+                isReady=false; 
+                statusHint.innerText="Hold to Ready"; 
+            }
         }
 
         window.openSessionModal = () => { document.getElementById('sessionOverlay').classList.add('active'); renderSessionList(); };
@@ -1153,7 +1207,7 @@
         window.addEventListener('keydown', e => {
             if(editingSessionId || document.activeElement.tagName === 'INPUT') {
                 if(e.code === 'Enter' && document.activeElement === manualInput) {
-                    // Manual input logic here
+                    // Manual input logic handled inside the keydown listener
                 } else {
                     return;
                 }
