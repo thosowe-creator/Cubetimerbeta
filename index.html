@@ -479,9 +479,10 @@
             // 상태값 매핑
             // 1: GET_SET, 2: HANDS_OFF, 3: RUNNING, 4: STOPPED, 6: HANDS_ON
             
-            // [Fix] 리셋 동기화: 준비(1), 대기(2), 멈춤(4) 상태면 타이머 시간을 화면에 동기화
-            // 단, 멈춤(4) 상태에서 앱 내 타이머가 돌고 있을 때(isRunning)는 stopTimer 로직을 타야 하므로 제외
-            if ((state === 1 || state === 2 || state === 4) && !isRunning && data.byteLength >= 8) {
+            // [Final Fix] 리셋/준비 상태 동기화 개선
+            // 타이머가 실행 중(State 3)이 아닐 때는 항상 웹앱 타이머를 기기 시간과 동기화합니다.
+            // 이렇게 하면 Hands On(6)이나 리셋 직후 등의 모든 대기 상태에서 0.00초가 즉시 반영됩니다.
+            if (state !== 3 && !isRunning && data.byteLength >= 8) {
                 const min = data.getUint8(4);
                 const sec = data.getUint8(5);
                 const msec = data.getUint16(6, true);
