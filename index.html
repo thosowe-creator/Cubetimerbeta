@@ -39,11 +39,10 @@
         .tool-option.active { color: #3b82f6; background: #eff6ff; }
         .category-btn.active { background-color: #3b82f6; color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); }
         .event-tab.active { background-color: #3b82f6; color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); }
-        
-        /* Status Colors - Important to override Tailwind utilities */
-        .text-ready { color: #10b981 !important; transform: scale(1.02); } /* Green */
-        .text-hold { color: #ef4444 !important; } /* Red */
-        .text-running { color: #2563eb !important; } /* Blue */
+        /* Status Colors */
+        .text-ready { color: #10b981 !important; transform: scale(1.02); } 
+        .text-hold { color: #ef4444 !important; }
+        .text-running { color: #2563eb !important; }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-slate-50 overflow-hidden">
@@ -256,7 +255,7 @@
             <!-- Timer Area -->
             <div id="timerContainer" class="flex flex-col items-center justify-center flex-grow w-full select-none">
                 <div id="timerInteractiveArea" class="rounded-3xl transition-colors hover:bg-slate-100/30">
-                    <div id="timerDisplayContainer" class="w-full flex justify-center flex-col items-center">
+                    <div id="timerDisplayContainer" class="w-full flex justify-center">
                         <div id="timer" class="timer-display text-slate-800 transition-all duration-100">0.00</div>
                         <input type="text" id="manualInput" class="manual-input hidden" placeholder="0.00">
                     </div>
@@ -476,9 +475,20 @@
 
             const state = data.getUint8(3);
             
-            // State: 1:GET_SET, 2:HANDS_OFF, 3:RUNNING, 4:STOPPED, 6:HANDS_ON
+            // 상태값 매핑
+            // 1: GET_SET, 2: HANDS_OFF, 3: RUNNING, 4: STOPPED, 6: HANDS_ON
             
-            if (state !== lastBtState || state === 4) { // Always process STOPPED to ensure saving
+            // [Fix] 리셋 동기화: 대기 상태(2)이거나 멈춤(4) 상태면 타이머 시간을 화면에 동기화
+            // 단, 멈춤(4) 상태에서 앱 내 타이머가 돌고 있을 때(isRunning)는 stopTimer 로직을 타야 하므로 제외
+            if ((state === 2 || state === 4) && !isRunning && data.byteLength >= 8) {
+                const min = data.getUint8(4);
+                const sec = data.getUint8(5);
+                const msec = data.getUint16(6, true);
+                const currentMs = (min * 60000) + (sec * 1000) + msec;
+                timerEl.innerText = formatTime(currentMs);
+            }
+
+            if (state !== lastBtState) {
                 if (state === 6) { // HANDS_ON
                     isReady = false;
                     timerEl.classList.add('text-ready'); // 초록색
@@ -979,7 +989,6 @@
 
             if (precision === 2) {
                 // Truncate to 2 decimal places (floor)
-                // e.g. 3226 ms -> 322 cs -> 3.22 s
                 const cs = Math.floor(ms / 10);
                 
                 const m = Math.floor(cs / 6000);
@@ -1207,7 +1216,7 @@
         window.addEventListener('keydown', e => {
             if(editingSessionId || document.activeElement.tagName === 'INPUT') {
                 if(e.code === 'Enter' && document.activeElement === manualInput) {
-                    // Manual input logic handled inside the keydown listener
+                    // Manual input logic here
                 } else {
                     return;
                 }
@@ -1263,14 +1272,11 @@
             customConfirm.innerHTML = `<div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"><div class="bg-white rounded-2xl p-6 w-full max-w-xs shadow-2xl"><p class="text-sm font-bold text-slate-700 mb-6 text-center">${msg}</p><div class="flex gap-2"><button id="cancelClear" class="flex-1 py-3 text-slate-400 font-bold text-sm">Cancel</button><button id="confirmClear" class="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-sm">Clear All</button></div></div></div>`;
             document.body.appendChild(customConfirm);
             document.getElementById('cancelClear').onclick = () => { document.body.removeChild(document.getElementById('clearConfirmModal')); };
-            
             document.getElementById('confirmClear').onclick = () => { 
                 solves = solves.filter(s => !(s.event === currentEvent && s.sessionId === sid)); 
-                updateUI(); 
-                saveData(); 
+                updateUI(); saveData(); 
                 document.body.removeChild(document.getElementById('clearConfirmModal')); 
-                timerEl.innerText = (0).toFixed(precision); 
-                resetPenalty(); 
+                timerEl.innerText = (0).toFixed(precision); resetPenalty(); 
             };
         };
 
