@@ -29,8 +29,11 @@ let lastStopTimestamp = 0;
 
 // Update Log Configuration
 const APP_VERSION = '1.1.1'; 
-const UPDATE_LOGS = [
-    "스페이스바를 통한 측정 불가 현상 수정",
+const UPDATE_HISTORY = [
+    { date: "2025.12.22", ver: "V1.1.1", content: ["스페이스바를 통한 측정 불가 현상 수정"] },
+    { date: "2025.12.21", ver: "V1.1", content: ["모바일 UI 개선", "인스펙션 기능 추가 (설정 탭)", "간 타이머 로직 수정"] },
+    { date: "2025.12.21", ver: "Known Issues", content: ["스퀘어-1 스크램블 로직 버그", "모바일 Ui에서 평균 공유 불가", "모바일 Ui에서 스크롤 버그 발생"], type: "issue" },
+    { date: "2025.12.20", ver: "v1", content: ["최초공개"] }
 ];
 
 // Lazy Loading Vars
@@ -144,15 +147,36 @@ window.addEventListener('resize', () => {
 });
 
 // --- Update Log Logic ---
+function renderUpdateLog() {
+    const list = document.getElementById('updateList');
+    list.innerHTML = UPDATE_HISTORY.map(item => {
+        const colorClass = item.type === 'issue' ? 'text-slate-500' : 'text-blue-600';
+        const title = item.type === 'issue' ? `확인된 사항 (${item.date})` : `${item.date} 업데이트 - ${item.ver}`;
+        return `
+            <li class="list-none mt-4 first:mt-0">
+                <p class="text-xs font-bold ${colorClass} mb-1">${title}</p>
+                <ul class="list-disc pl-4 space-y-1">
+                    ${item.content.map(c => `<li class="${item.type === 'issue' ? 'text-slate-400' : ''}">${c}</li>`).join('')}
+                </ul>
+            </li>
+        `;
+    }).join('');
+    document.getElementById('updateVersion').innerText = `v${APP_VERSION}`;
+}
+
 function checkUpdateLog() {
     const savedVersion = localStorage.getItem('appVersion');
     if (savedVersion !== APP_VERSION) {
-        document.getElementById('updateVersion').innerText = `v${APP_VERSION}`;
-        const list = document.getElementById('updateList');
-        list.innerHTML = UPDATE_LOGS.map(log => `<li>${log}</li>`).join('');
+        renderUpdateLog();
         document.getElementById('updateLogOverlay').classList.add('active');
     }
 }
+
+window.openUpdateLog = () => {
+    renderUpdateLog();
+    document.getElementById('updateLogOverlay').classList.add('active');
+};
+
 window.closeUpdateLog = () => {
     document.getElementById('updateLogOverlay').classList.remove('active');
     localStorage.setItem('appVersion', APP_VERSION);
@@ -1286,4 +1310,3 @@ loadData();
 changeEvent(currentEvent);
 // Check for updates on load
 checkUpdateLog();
-
