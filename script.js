@@ -30,7 +30,7 @@ let lastStopTimestamp = 0;
 // Update Log Configuration
 const APP_VERSION = '1.1.1'; 
 const UPDATE_LOGS = [
-    "타이머를 통한 측정 불가 현상 수정",
+    "스페이스바를 통한 측정 불가 현상 수정",
 ];
 
 // Lazy Loading Vars
@@ -1286,3 +1286,4 @@ loadData();
 changeEvent(currentEvent);
 // Check for updates on load
 checkUpdateLog();
+
