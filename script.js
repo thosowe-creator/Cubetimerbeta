@@ -28,11 +28,9 @@ let hasSpoken12 = false;
 let lastStopTimestamp = 0;
 
 // Update Log Configuration
-const APP_VERSION = '1.1'; 
+const APP_VERSION = '1.1.1'; 
 const UPDATE_LOGS = [
-    "모바일 UI 개편",
-    "Gan Halo Timer 사용 시 소숫점이 반올림되던 현상 수정",
-    "인스펙션 기능 추가",
+    "타이머를 통한 측정 불가 현상 수정",
 ];
 
 // Lazy Loading Vars
@@ -1143,7 +1141,8 @@ function calculateAvg(list, count, mean=false) {
 function handleStart(e) {
     // [FIX] Ignore touches on interactive elements like badges or buttons
     // This allows clicking on stats/settings without triggering the timer
-    if (e.target.closest('.avg-badge') || e.target.closest('button') || e.target.closest('.tools-dropdown')) return;
+    // Also ensuring e exists and checking target only for non-keyboard events to prevent errors or blocks
+    if (e && e.type !== 'keydown' && e.target && (e.target.closest('.avg-badge') || e.target.closest('button') || e.target.closest('.tools-dropdown'))) return;
 
     if (isBtConnected && !isInspectionMode) return; 
     
@@ -1256,8 +1255,8 @@ window.openAvgShare = (type) => { const sid = getCurrentSessionId(); const count
 window.openSingleShare = () => { const s = solves.find(x => x.id === selectedSolveId); if (!s) return; closeModal(); const dateStr = s.date || new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, ""); document.getElementById('shareDate').innerText = `Date : ${dateStr}.`; document.getElementById('shareLabel').innerText = `Single :`; document.getElementById('shareAvg').innerText = s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time) + (s.penalty==='+2'?'+':''); const listContainer = document.getElementById('shareList'); listContainer.innerHTML = `<div class="flex flex-col p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700"><div class="flex items-center gap-3"><span class="text-[10px] font-bold text-slate-400 w-4">1.</span><span class="font-bold text-slate-800 dark:text-slate-200 text-sm min-w-[50px]">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span><span class="text-[10px] text-slate-400 font-medium italic truncate flex-grow">${s.scramble}</span></div></div>`; document.getElementById('avgShareOverlay').classList.add('active'); };
 window.closeAvgShare = () => document.getElementById('avgShareOverlay').classList.remove('active');
 window.copyShareText = () => { const date = document.getElementById('shareDate').innerText; const avgLabel = document.getElementById('shareLabel').innerText; const avgVal = document.getElementById('shareAvg').innerText; const isSingle = avgLabel.includes('Single'); let text = `[CubeTimer]\n\n${date}\n\n${avgLabel} ${avgVal}\n\n`; if (isSingle) { const s = solves.find(x => x.id === selectedSolveId); if (s) text += `1. ${avgVal}   ${s.scramble}\n`; } else { const count = avgLabel.includes('5') ? 5 : (avgLabel.includes('3') ? 3 : 12); const sid = getCurrentSessionId(); const filtered = solves.filter(s => s.event === currentEvent && s.sessionId === sid).slice(0, count); filtered.reverse().forEach((s, i) => { text += `${i+1}. ${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}   ${s.scramble}\n`; }); } const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select(); try { document.execCommand('copy'); const btn = document.querySelector('[onclick="copyShareText()"]'); const original = btn.innerHTML; btn.innerHTML = "Copied!"; btn.classList.add('bg-green-600'); setTimeout(() => { btn.innerHTML = original; btn.classList.remove('bg-green-600'); }, 2000); } catch (err) { console.error('Copy failed', err); } document.body.removeChild(textArea); };
-window.addEventListener('keydown', e => { if(editingSessionId || document.activeElement.tagName === 'INPUT') { if(e.code === 'Enter' && document.activeElement === manualInput) {} else { return; } } if(e.code==='Space' && !e.repeat) { e.preventDefault(); handleStart(); } if(isManualMode && e.code==='Enter') { let v = parseFloat(manualInput.value); if(v>0) { solves.unshift({ id:Date.now(), time:v*1000, scramble:currentScramble, event:currentEvent, sessionId: getCurrentSessionId(), penalty:null, date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "") }); manualInput.value=""; updateUI(); generateScramble(); saveData(); } } });
-window.addEventListener('keyup', e => { if(e.code==='Space' && !editingSessionId) handleEnd(); });
+window.addEventListener('keydown', e => { if(editingSessionId || document.activeElement.tagName === 'INPUT') { if(e.code === 'Enter' && document.activeElement === manualInput) {} else { return; } } if(e.code==='Space' && !e.repeat) { e.preventDefault(); handleStart(e); } if(isManualMode && e.code==='Enter') { let v = parseFloat(manualInput.value); if(v>0) { solves.unshift({ id:Date.now(), time:v*1000, scramble:currentScramble, event:currentEvent, sessionId: getCurrentSessionId(), penalty:null, date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "") }); manualInput.value=""; updateUI(); generateScramble(); saveData(); } } });
+window.addEventListener('keyup', e => { if(e.code==='Space' && !editingSessionId) handleEnd(e); });
 const interactiveArea = document.getElementById('timerInteractiveArea');
 interactiveArea.addEventListener('touchstart', handleStart, { passive: false });
 interactiveArea.addEventListener('touchend', handleEnd, { passive: false });
