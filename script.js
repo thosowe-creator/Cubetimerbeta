@@ -105,6 +105,35 @@ const configs = {
     '333mbf': { moves: ["U","D","L","R","F","B"], len: 21, n: 3, cat: 'blind' }
 };
 
+var eventToPuzzleId = window.eventToPuzzleId || {
+    '333': '3x3x3',
+    '333oh': '3x3x3',
+    '222': '2x2x2',
+    '444': '4x4x4',
+    '555': '5x5x5',
+    '666': '6x6x6',
+    '777': '7x7x7',
+    'minx': 'megaminx',
+    'pyra': 'pyraminx',
+    'clock': 'clock',
+    'skewb': 'skewb',
+    'sq1': 'square1',
+    '333bf': '3x3x3',
+    '444bf': '4x4x4',
+    '555bf': '5x5x5',
+    '333mbf': '3x3x3'
+};
+
+var eventToScrambleId = window.eventToScrambleId || {
+    'minx': 'megaminx',
+    'pyra': 'pyraminx',
+    'clock': 'clock',
+    'skewb': 'skewb',
+    'sq1': 'square1'
+};
+window.eventToPuzzleId = eventToPuzzleId;
+window.eventToScrambleId = eventToScrambleId;
+
 const eventToPuzzleId = {
     '333': '3x3x3',
     '333oh': '3x3x3',
@@ -1878,6 +1907,75 @@ window.copyMbfText = () => {
     document.execCommand('copy'); document.body.removeChild(textArea);
     const btn = document.querySelector('[onclick="copyMbfText()"]');
     const original = btn.innerText; btn.innerText = "Copied!"; setTimeout(() => btn.innerText = original, 2000);
+};
+
+window.saveMbfResult = () => {
+    if (currentEvent !== '333mbf') return;
+    const solved = parseInt(mbfSolvedInput.value, 10);
+    const attempted = parseInt(mbfAttemptedInput.value, 10);
+    const timeMs = parseTimeToMs(mbfTimeInput.value);
+    if (Number.isNaN(solved) || Number.isNaN(attempted) || attempted <= 0 || solved < 0) {
+        showToast('Enter valid solved/attempted counts', 'warning');
+        return;
+    }
+    const now = Date.now();
+    const timeLabel = timeMs ? formatTime(timeMs) : '-';
+    solves.unshift({
+        id: now,
+        time: timeMs || 0,
+        scramble: `MBF ${solved}/${attempted} • ${timeLabel}`,
+        event: currentEvent,
+        sessionId: getCurrentSessionId(),
+        penalty: null,
+        mbfSolved: solved,
+        mbfAttempted: attempted,
+        mbfTimeMs: timeMs,
+        date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, ""),
+        timestamp: now
+    });
+    mbfSolvedInput.value = '';
+    mbfAttemptedInput.value = '';
+    mbfTimeInput.value = '';
+    updateUI();
+    saveData();
+    showToast('MBF result saved');
+};
+
+window.openScrambleHistoryModal = () => {
+    const list = document.getElementById('scrambleHistoryList');
+    const history = getScrambleHistory(currentEvent);
+    if (!history.length) {
+        list.innerHTML = '<div class="text-center text-slate-300 text-[11px] italic">No scrambles yet</div>';
+    } else {
+        list.innerHTML = history.map((scramble, idx) => `
+            <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="text-[10px] font-bold text-slate-400">#${history.length - idx}</div>
+                    <div class="text-xs font-bold text-slate-600 dark:text-slate-300 whitespace-pre-wrap flex-1">${escapeHtml(scramble)}</div>
+                    <button onclick="useScrambleFromHistory(${idx})" class="text-[10px] font-bold text-blue-500 hover:underline">Use</button>
+                </div>
+            </div>
+        `).join('');
+    }
+    document.getElementById('scrambleHistoryOverlay').classList.add('active');
+};
+
+window.closeScrambleHistoryModal = () => document.getElementById('scrambleHistoryOverlay').classList.remove('active');
+
+window.useScrambleFromHistory = (idx) => {
+    const history = getScrambleHistory(currentEvent);
+    const selected = history[idx];
+    if (!selected) return;
+    currentScramble = selected;
+    scrambleEl.innerText = currentScramble;
+    if (configs[currentEvent]?.n) {
+        initCube(configs[currentEvent].n);
+        currentScramble.split(/\s+/).filter(s => s && !orientations.includes(s) && s!=='y2').forEach(applyMove);
+    } else {
+        cubeState = {};
+    }
+    updateVisualizer();
+    closeScrambleHistoryModal();
 };
 
 window.saveMbfResult = () => {
