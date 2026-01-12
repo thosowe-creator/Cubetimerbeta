@@ -26,7 +26,6 @@
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <script type="module" src="https://cdn.cubing.net/js/cubing/twisty-player.js"></script>
     <style>
         /* Mobile Bottom Nav Safe Area */
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
@@ -42,10 +41,6 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
             </div>
             <h1 class="font-bold text-slate-700 dark:text-slate-200 tracking-tight text-lg md:text-xl">CubeTimer</h1>
-            <!-- [NEW] Update Log Info Button -->
-            <button onclick="openUpdateLog()" class="p-1.5 ml-1 rounded-full text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all" aria-label="Update Info">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            </button>
         </div>
         <div class="flex items-center gap-2 md:gap-4">
             <button onclick="openBTModal()" id="btToggleBtn" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-all flex items-center justify-center">
@@ -61,6 +56,9 @@
         </div>
     </header>
 
+    <!-- Modals (Bluetooth, Session, Mbf, Stats, Settings, Share, UpdateLog, SolveDetail) -->
+    <!-- ... (All modals kept exactly the same logic, just existing in HTML) ... -->
+    
     <!-- Bluetooth Modal -->
     <div id="btOverlay" class="modal-overlay" onclick="closeBTModal()">
         <div class="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl p-8" onclick="event.stopPropagation()">
@@ -116,24 +114,6 @@
                 <button onclick="copyMbfText()" class="flex-1 py-3.5 bg-slate-800 dark:bg-slate-700 text-white font-bold rounded-xl text-sm">Copy All</button>
                 <button onclick="closeMbfScrambleModal()" class="flex-1 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-sm">Close</button>
             </div>
-        </div>
-    </div>
-
-    <!-- Scramble History Modal -->
-    <div id="scrambleHistoryOverlay" class="modal-overlay" onclick="closeScrambleHistoryModal()">
-        <div class="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl p-6" onclick="event.stopPropagation()">
-            <h3 class="font-bold text-slate-700 dark:text-white text-lg mb-4">Scramble History</h3>
-            <div id="scrambleHistoryList" class="space-y-3 max-h-[60vh] overflow-y-auto custom-scroll pr-2"></div>
-            <button onclick="closeScrambleHistoryModal()" class="w-full mt-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-sm">Close</button>
-        </div>
-    </div>
-
-    <!-- Scramble History Modal -->
-    <div id="scrambleHistoryOverlay" class="modal-overlay" onclick="closeScrambleHistoryModal()">
-        <div class="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl p-6" onclick="event.stopPropagation()">
-            <h3 class="font-bold text-slate-700 dark:text-white text-lg mb-4">Scramble History</h3>
-            <div id="scrambleHistoryList" class="space-y-3 max-h-[60vh] overflow-y-auto custom-scroll pr-2"></div>
-            <button onclick="closeScrambleHistoryModal()" class="w-full mt-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-sm">Close</button>
         </div>
     </div>
 
@@ -243,12 +223,12 @@
                 </div>
                 <h3 class="font-bold text-slate-700 dark:text-white text-lg">Update Log</h3>
             </div>
-            <div class="mb-6 max-h-[60vh] overflow-y-auto custom-scroll pr-2">
-                <div class="flex items-center justify-between mb-4">
-                    <span id="updateVersion" class="text-xs font-black bg-blue-600 text-white px-2 py-1 rounded-md uppercase"></span>
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">History</span>
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                    <span id="updateVersion" class="text-xs font-black bg-blue-600 text-white px-2 py-1 rounded-md uppercase">v1.2.0</span>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Latest</span>
                 </div>
-                <ul id="updateList" class="space-y-4 text-sm font-medium text-slate-600 dark:text-slate-300"></ul>
+                <ul id="updateList" class="space-y-2 text-sm font-medium text-slate-600 dark:text-slate-300 marker:text-blue-500 list-disc pl-4"></ul>
             </div>
             <button onclick="closeUpdateLog()" class="w-full py-3.5 bg-slate-800 dark:bg-slate-700 text-white font-bold rounded-xl text-sm shadow-lg hover:bg-slate-700 transition-colors">Okay, Got it!</button>
         </div>
@@ -297,10 +277,7 @@
 
                 <!-- Scramble -->
                 <div class="text-center w-full">
-                    <div class="flex items-center justify-center gap-2 mb-3">
-                        <h2 class="text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-[10px] font-bold">Scramble</h2>
-                        <button onclick="openScrambleHistoryModal()" class="text-[10px] font-bold text-blue-500 hover:underline">History</button>
-                    </div>
+                    <h2 class="text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-[10px] font-bold mb-3">Scramble</h2>
                     <div id="scrambleBox" class="scramble-box p-6 md:p-8 min-h-[120px] flex flex-col items-center justify-center border border-slate-100 dark:border-slate-800 rounded-3xl transition-colors">
                         <div id="scramble" class="text-base md:text-xl font-bold text-slate-600 dark:text-slate-300 whitespace-pre-wrap text-center max-w-5xl leading-relaxed">Generating...</div>
                         <div id="mbfInputArea" class="hidden flex flex-col items-center gap-4 w-full">
@@ -308,15 +285,6 @@
                             <div class="flex gap-2 w-full max-w-xs">
                                 <input type="number" id="mbfCubeInput" min="2" max="100" placeholder="e.g. 10" class="flex-1 bg-slate-50 dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-lg font-bold text-center outline-none focus:border-blue-400 transition-all">
                                 <button onclick="generateMbfScrambles()" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold active:scale-95 transition-all shadow-md">Go</button>
-                            </div>
-                            <div id="mbfResultForm" class="w-full max-w-md mt-4">
-                                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Record Result</p>
-                                <div class="grid grid-cols-3 gap-2">
-                                    <input type="number" id="mbfSolvedInput" min="0" placeholder="Solved" class="bg-white dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none focus:border-blue-400 transition-all">
-                                    <input type="number" id="mbfAttemptedInput" min="0" placeholder="Attempted" class="bg-white dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none focus:border-blue-400 transition-all">
-                                    <input type="text" id="mbfTimeInput" placeholder="Time (mm:ss)" class="bg-white dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none focus:border-blue-400 transition-all">
-                                </div>
-                                <button onclick="saveMbfResult()" class="w-full mt-3 py-2.5 bg-slate-800 dark:bg-slate-700 text-white font-bold rounded-xl text-sm active:scale-95 transition-all">Save Result</button>
                             </div>
                         </div>
                     </div>
@@ -366,27 +334,6 @@
                 </div>
                 <button id="clearHistoryBtn" class="text-[11px] font-bold text-slate-300 hover:text-red-400 transition-colors uppercase tracking-wider">Clear</button>
             </div>
-
-            <div class="history-filters p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col gap-3">
-                <div class="flex items-center justify-between gap-3">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Period</label>
-                    <select id="historyPeriodFilter" class="filter-select">
-                        <option value="all">All</option>
-                        <option value="today">Today</option>
-                        <option value="7d">Last 7 Days</option>
-                        <option value="30d">Last 30 Days</option>
-                    </select>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recent</label>
-                    <select id="historyCountFilter" class="filter-select">
-                        <option value="all">All</option>
-                        <option value="10">10 solves</option>
-                        <option value="25">25 solves</option>
-                        <option value="50">50 solves</option>
-                    </select>
-                </div>
-            </div>
             
             <div id="historyList" class="flex-grow overflow-y-auto p-4 space-y-2 custom-scroll bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800"></div>
             
@@ -423,7 +370,6 @@
                     <div id="toolContainer" class="flex items-center justify-center min-h-[190px]">
                         <div id="visualizerWrapper" class="w-full flex justify-center items-center">
                             <canvas id="cubeVisualizer" width="260" height="190"></canvas>
-                            <twisty-player id="twistyPlayer" class="twisty-player hidden"></twisty-player>
                             <div id="noVisualizerMsg" class="hidden text-[11px] text-slate-300 italic">Visualizer for standard cubes only</div>
                         </div>
                         <div id="graphWrapper" class="w-full h-[190px] hidden flex flex-col p-2">
@@ -450,14 +396,13 @@
             <span class="text-[10px] font-bold mt-1">Stats</span>
         </button>
         <button onclick="openSettings()" class="flex flex-col items-center justify-center w-full h-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2-2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             <span class="text-[10px] font-bold mt-1">Settings</span>
         </button>
     </nav>
 
-    <div id="toastContainer" class="toast-container"></div>
-
     <!-- 외부 스크립트 연결 -->
     <script src="script.js"></script>
 </body>
+</html>
 </html>
