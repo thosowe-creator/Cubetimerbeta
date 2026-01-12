@@ -132,12 +132,318 @@ const eventToScrambleId = {
     'sq1': 'square1'
 };
 
+const eventToPuzzleId = {
+    '333': '3x3x3',
+    '333oh': '3x3x3',
+    '222': '2x2x2',
+    '444': '4x4x4',
+    '555': '5x5x5',
+    '666': '6x6x6',
+    '777': '7x7x7',
+    'minx': 'megaminx',
+    'pyra': 'pyraminx',
+    'clock': 'clock',
+    'skewb': 'skewb',
+    'sq1': 'square1',
+    '333bf': '3x3x3',
+    '444bf': '4x4x4',
+    '555bf': '5x5x5',
+    '333mbf': '3x3x3'
+};
+
+const eventToScrambleId = {
+    'pyra': 'pyram'
+};
+
 const suffixes = ["", "'", "2"];
 const orientations = ["x", "x'", "x2", "y", "y'", "y2", "z", "z'", "z2"];
 const wideMoves = ["Uw", "Dw", "Lw", "Rw", "Fw", "Bw"]; 
 
 let cubeState = {};
 const COLORS = { U: '#FFFFFF', D: '#FFD500', L: '#FF8C00', R: '#DC2626', F: '#16A34A', B: '#2563EB' };
+
+const filterPresets = {
+    all: null,
+    today: 0,
+    '7d': 7,
+    '30d': 30
+};
+
+let scrambleRequestToken = 0;
+let scrambleModulePromise = null;
+
+function loadScramblerModule() {
+    if (!scrambleModulePromise) {
+        scrambleModulePromise = import('https://cdn.cubing.net/js/cubing/scramble.js');
+    }
+    return scrambleModulePromise;
+}
+
+function normalizeScrambleText(scramble) {
+    if (!scramble) return '';
+    if (typeof scramble === 'string') return scramble;
+    if (typeof scramble.toString === 'function') return scramble.toString();
+    return String(scramble);
+}
+
+function applyScramble(scrambleText, conf, eventId) {
+    if (currentEvent !== eventId) return;
+    currentScramble = scrambleText;
+    scrambleEl.innerText = currentScramble;
+    if (conf.n) {
+        initCube(conf.n);
+        currentScramble
+            .split(/\s+/)
+            .filter(s => s && !orientations.includes(s) && s !== 'y2')
+            .forEach(applyMove);
+    } else {
+        cubeState = {};
+    }
+    addScrambleHistory(eventId, currentScramble);
+    updateVisualizer();
+    resetPenalty();
+    if (activeTool === 'graph') renderHistoryGraph();
+}
+
+function buildFallbackScramble(conf, eventId) {
+    let res = [];
+    if (eventId === 'minx') {
+        for (let i = 0; i < 7; i++) {
+            let line = [];
+            for (let j = 0; j < 10; j++) {
+                const type = (j % 2 === 0) ? "R" : "D";
+                const suffix = (Math.random() < 0.5) ? "++" : "--";
+                line.push(type + suffix);
+            }
+            line.push(Math.random() < 0.5 ? "U" : "U'");
+            res.push(line.join(" "));
+        }
+        return res.join("\n");
+    }
+    if (eventId === 'clock') {
+        const dials = ["UR", "DR", "DL", "UL", "U", "R", "D", "L", "ALL"];
+        dials.forEach(d => {
+            const v = Math.floor(Math.random() * 12) - 5;
+            res.push(`${d}${v >= 0 ? '+' : ''}${v}`);
+        });
+        res.push("y2");
+        const dials2 = ["U", "R", "D", "L", "ALL"];
+        dials2.forEach(d => {
+            const v = Math.floor(Math.random() * 12) - 5;
+            res.push(`${d}${v >= 0 ? '+' : ''}${v}`);
+        });
+        let pins = [];
+        ["UR", "DR", "DL", "UL"].forEach(p => {
+            if (Math.random() < 0.5) pins.push(p);
+        });
+        if (pins.length) res.push(pins.join(" "));
+        return res.join(" ");
+    }
+    if (eventId === 'sq1') {
+        let topCuts = [true, false, true, true, false, true, true, false, true, true, false, true];
+        let botCuts = [true, false, true, true, false, true, true, false, true, true, false, true];
+        let movesCount = 0;
+        let scrambleOps = [];
+        const rotateArray = (arr, amt) => {
+            const n = 12;
+            let amount = amt % n;
+            if (amount < 0) amount += n;
+            const spliced = arr.splice(n - amount, amount);
+            arr.unshift(...spliced);
+        };
+        while (movesCount < 12) {
+            let u = Math.floor(Math.random() * 12) - 5;
+            let d = Math.floor(Math.random() * 12) - 5;
+            if (u === 0 && d === 0) continue;
+            let nextTop = [...topCuts];
+            let nextBot = [...botCuts];
+            rotateArray(nextTop, u);
+            rotateArray(nextBot, d);
+            if (nextTop[0] && nextTop[6] && nextBot[0] && nextBot[6]) {
+                scrambleOps.push(`(${u},${d})`);
+                let topRight = nextTop.slice(6, 12);
+                let botRight = nextBot.slice(6, 12);
+                let newTop = [...nextTop.slice(0, 6), ...botRight];
+                let newBot = [...nextBot.slice(0, 6), ...topRight];
+                topCuts = newTop;
+                botCuts = newBot;
+                scrambleOps.push("/");
+                movesCount++;
+            }
+        }
+        return scrambleOps.join(" ");
+    }
+    if (['pyra', 'skewb'].includes(eventId)) {
+        let last = "";
+        for (let i = 0; i < conf.len; i++) {
+            let m;
+            do { m = conf.moves[Math.floor(Math.random() * conf.moves.length)]; } while (m === last);
+            res.push(m + (Math.random() < 0.5 ? "'" : ""));
+            last = m;
+        }
+        if (eventId === 'pyra') {
+            conf.tips.forEach(t => {
+                const r = Math.floor(Math.random() * 3);
+                if (r === 1) res.push(t); else if (r === 2) res.push(t + "'");
+            });
+        }
+        return res.join(" ");
+    }
+    let lastAxis = -1;
+    let secondLastAxis = -1;
+    let lastMoveBase = "";
+    const getMoveAxis = (m) => {
+        const c = m[0];
+        if ("UD".includes(c)) return 0;
+        if ("LR".includes(c)) return 1;
+        if ("FB".includes(c)) return 2;
+        return -1;
+    };
+    for (let i = 0; i < conf.len; i++) {
+        let move, axis, base;
+        let valid = false;
+        while (!valid) {
+            move = conf.moves[Math.floor(Math.random() * conf.moves.length)];
+            axis = getMoveAxis(move);
+            base = move[0];
+            if (base === lastMoveBase) { valid = false; continue; }
+            if (axis !== -1 && axis === lastAxis && axis === secondLastAxis) { valid = false; continue; }
+            valid = true;
+        }
+        res.push(move + suffixes[Math.floor(Math.random() * 3)]);
+        secondLastAxis = lastAxis;
+        lastAxis = axis;
+        lastMoveBase = base;
+    }
+    if (eventId === '333bf') {
+        const wideMoveCount = Math.floor(Math.random() * 2) + 1;
+        for (let i = 0; i < wideMoveCount; i++) {
+            const wm = wideMoves[Math.floor(Math.random() * wideMoves.length)];
+            const suf = suffixes[Math.floor(Math.random() * 3)];
+            res.push(wm + suf);
+        }
+    } else if (conf.cat === 'blind') {
+        res.push(orientations[Math.floor(Math.random() * orientations.length)]);
+        if (Math.random() > 0.5) res.push(orientations[Math.floor(Math.random() * orientations.length)]);
+    }
+    return res.join(" ");
+}
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function getSolveTimestamp(solve) {
+    if (typeof solve.timestamp === 'number') return solve.timestamp;
+    if (!solve.date) return Date.now();
+    const cleaned = solve.date.replace(/\s/g, '').replace(/\.$/, '');
+    const parts = cleaned.split('.').filter(Boolean);
+    if (parts.length >= 3) {
+        const [year, month, day] = parts.map(Number);
+        if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+            return new Date(year, month - 1, day).getTime();
+        }
+    }
+    return Date.now();
+}
+
+function parseTimeToMs(value) {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (trimmed.includes(':')) {
+        const [minStr, secStr] = trimmed.split(':');
+        const minutes = parseInt(minStr, 10);
+        const seconds = parseFloat(secStr);
+        if (Number.isNaN(minutes) || Number.isNaN(seconds)) return null;
+        return (minutes * 60 + seconds) * 1000;
+    }
+    const seconds = parseFloat(trimmed);
+    if (Number.isNaN(seconds)) return null;
+    return seconds * 1000;
+}
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-8px)';
+        setTimeout(() => toast.remove(), 200);
+    }, 2200);
+}
+
+function addScrambleHistory(eventId, scramble) {
+    if (!scramble) return;
+    if (!scrambleHistory[eventId]) scrambleHistory[eventId] = [];
+    const history = scrambleHistory[eventId];
+    if (history[0] === scramble) return;
+    history.unshift(scramble);
+    if (history.length > 20) history.pop();
+}
+
+function getScrambleHistory(eventId) {
+    return scrambleHistory[eventId] || [];
+}
+
+function getFilteredSolves(eventId = currentEvent) {
+    const sid = getCurrentSessionId();
+    let list = solves.filter(s => s.event === eventId && s.sessionId === sid);
+    const days = filterPresets[historyFilterPeriod];
+    if (days !== null && days !== undefined) {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const cutoff = days === 0 ? start : now.getTime() - days * 24 * 60 * 60 * 1000;
+        list = list.filter(s => getSolveTimestamp(s) >= cutoff);
+    }
+    if (historyFilterCount !== 'all') {
+        const count = parseInt(historyFilterCount, 10);
+        if (!Number.isNaN(count)) list = list.slice(0, count);
+    }
+    return list;
+}
+
+function updateFilterControls() {
+    if (historyPeriodFilter) historyPeriodFilter.value = historyFilterPeriod;
+    if (historyCountFilter) historyCountFilter.value = historyFilterCount;
+}
+
+function updateVisualizer() {
+    if (activeTool !== 'scramble') return;
+    const conf = configs[currentEvent];
+    const puzzleId = eventToPuzzleId[currentEvent];
+    const scrambleType = eventToScrambleId[currentEvent] || currentEvent;
+    if (!twistyPlayer) return;
+    if (conf?.n) {
+        twistyPlayer.classList.add('hidden');
+        visualizerCanvas.style.display = 'block';
+        noVisualizerMsg.classList.add('hidden');
+        drawCube();
+        return;
+    }
+    visualizerCanvas.style.display = 'none';
+    if (!puzzleId) {
+        twistyPlayer.classList.add('hidden');
+        noVisualizerMsg.innerText = "Visualizer not available";
+        noVisualizerMsg.classList.remove('hidden');
+        return;
+    }
+    noVisualizerMsg.classList.add('hidden');
+    twistyPlayer.classList.remove('hidden');
+    twistyPlayer.setAttribute('puzzle', puzzleId);
+    twistyPlayer.setAttribute('scramble', currentScramble || '');
+    twistyPlayer.setAttribute('scramble-type', scrambleType);
+    twistyPlayer.removeAttribute('alg');
+    twistyPlayer.setAttribute('control-panel', 'none');
+    twistyPlayer.setAttribute('background', 'none');
+}
 
 const filterPresets = {
     all: null,
@@ -1262,6 +1568,75 @@ window.copyMbfText = () => {
     document.execCommand('copy'); document.body.removeChild(textArea);
     const btn = document.querySelector('[onclick="copyMbfText()"]');
     const original = btn.innerText; btn.innerText = "Copied!"; setTimeout(() => btn.innerText = original, 2000);
+};
+
+window.saveMbfResult = () => {
+    if (currentEvent !== '333mbf') return;
+    const solved = parseInt(mbfSolvedInput.value, 10);
+    const attempted = parseInt(mbfAttemptedInput.value, 10);
+    const timeMs = parseTimeToMs(mbfTimeInput.value);
+    if (Number.isNaN(solved) || Number.isNaN(attempted) || attempted <= 0 || solved < 0) {
+        showToast('Enter valid solved/attempted counts', 'warning');
+        return;
+    }
+    const now = Date.now();
+    const timeLabel = timeMs ? formatTime(timeMs) : '-';
+    solves.unshift({
+        id: now,
+        time: timeMs || 0,
+        scramble: `MBF ${solved}/${attempted} • ${timeLabel}`,
+        event: currentEvent,
+        sessionId: getCurrentSessionId(),
+        penalty: null,
+        mbfSolved: solved,
+        mbfAttempted: attempted,
+        mbfTimeMs: timeMs,
+        date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, ""),
+        timestamp: now
+    });
+    mbfSolvedInput.value = '';
+    mbfAttemptedInput.value = '';
+    mbfTimeInput.value = '';
+    updateUI();
+    saveData();
+    showToast('MBF result saved');
+};
+
+window.openScrambleHistoryModal = () => {
+    const list = document.getElementById('scrambleHistoryList');
+    const history = getScrambleHistory(currentEvent);
+    if (!history.length) {
+        list.innerHTML = '<div class="text-center text-slate-300 text-[11px] italic">No scrambles yet</div>';
+    } else {
+        list.innerHTML = history.map((scramble, idx) => `
+            <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="text-[10px] font-bold text-slate-400">#${history.length - idx}</div>
+                    <div class="text-xs font-bold text-slate-600 dark:text-slate-300 whitespace-pre-wrap flex-1">${escapeHtml(scramble)}</div>
+                    <button onclick="useScrambleFromHistory(${idx})" class="text-[10px] font-bold text-blue-500 hover:underline">Use</button>
+                </div>
+            </div>
+        `).join('');
+    }
+    document.getElementById('scrambleHistoryOverlay').classList.add('active');
+};
+
+window.closeScrambleHistoryModal = () => document.getElementById('scrambleHistoryOverlay').classList.remove('active');
+
+window.useScrambleFromHistory = (idx) => {
+    const history = getScrambleHistory(currentEvent);
+    const selected = history[idx];
+    if (!selected) return;
+    currentScramble = selected;
+    scrambleEl.innerText = currentScramble;
+    if (configs[currentEvent]?.n) {
+        initCube(configs[currentEvent].n);
+        currentScramble.split(/\s+/).filter(s => s && !orientations.includes(s) && s!=='y2').forEach(applyMove);
+    } else {
+        cubeState = {};
+    }
+    updateVisualizer();
+    closeScrambleHistoryModal();
 };
 
 window.saveMbfResult = () => {
