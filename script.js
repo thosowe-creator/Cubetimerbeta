@@ -124,6 +124,10 @@ const eventToPuzzleId = {
     '333mbf': '3x3x3'
 };
 
+const eventToScrambleId = {
+    'pyra': 'pyram'
+};
+
 const suffixes = ["", "'", "2"];
 const orientations = ["x", "x'", "x2", "y", "y'", "y2", "z", "z'", "z2"];
 const wideMoves = ["Uw", "Dw", "Lw", "Rw", "Fw", "Bw"]; 
@@ -138,6 +142,165 @@ const filterPresets = {
     '30d': 30
 };
 
+let scrambleRequestToken = 0;
+let scrambleModulePromise = null;
+
+function loadScramblerModule() {
+    if (!scrambleModulePromise) {
+        scrambleModulePromise = import('https://cdn.cubing.net/js/cubing/scramble.js');
+    }
+    return scrambleModulePromise;
+}
+
+function normalizeScrambleText(scramble) {
+    if (!scramble) return '';
+    if (typeof scramble === 'string') return scramble;
+    if (typeof scramble.toString === 'function') return scramble.toString();
+    return String(scramble);
+}
+
+function applyScramble(scrambleText, conf, eventId) {
+    if (currentEvent !== eventId) return;
+    currentScramble = scrambleText;
+    scrambleEl.innerText = currentScramble;
+    if (conf.n) {
+        initCube(conf.n);
+        currentScramble
+            .split(/\s+/)
+            .filter(s => s && !orientations.includes(s) && s !== 'y2')
+            .forEach(applyMove);
+    } else {
+        cubeState = {};
+    }
+    addScrambleHistory(eventId, currentScramble);
+    updateVisualizer();
+    resetPenalty();
+    if (activeTool === 'graph') renderHistoryGraph();
+}
+
+function buildFallbackScramble(conf, eventId) {
+    let res = [];
+    if (eventId === 'minx') {
+        for (let i = 0; i < 7; i++) {
+            let line = [];
+            for (let j = 0; j < 10; j++) {
+                const type = (j % 2 === 0) ? "R" : "D";
+                const suffix = (Math.random() < 0.5) ? "++" : "--";
+                line.push(type + suffix);
+            }
+            line.push(Math.random() < 0.5 ? "U" : "U'");
+            res.push(line.join(" "));
+        }
+        return res.join("\n");
+    }
+    if (eventId === 'clock') {
+        const dials = ["UR", "DR", "DL", "UL", "U", "R", "D", "L", "ALL"];
+        dials.forEach(d => {
+            const v = Math.floor(Math.random() * 12) - 5;
+            res.push(`${d}${v >= 0 ? '+' : ''}${v}`);
+        });
+        res.push("y2");
+        const dials2 = ["U", "R", "D", "L", "ALL"];
+        dials2.forEach(d => {
+            const v = Math.floor(Math.random() * 12) - 5;
+            res.push(`${d}${v >= 0 ? '+' : ''}${v}`);
+        });
+        let pins = [];
+        ["UR", "DR", "DL", "UL"].forEach(p => {
+            if (Math.random() < 0.5) pins.push(p);
+        });
+        if (pins.length) res.push(pins.join(" "));
+        return res.join(" ");
+    }
+    if (eventId === 'sq1') {
+        let topCuts = [true, false, true, true, false, true, true, false, true, true, false, true];
+        let botCuts = [true, false, true, true, false, true, true, false, true, true, false, true];
+        let movesCount = 0;
+        let scrambleOps = [];
+        const rotateArray = (arr, amt) => {
+            const n = 12;
+            let amount = amt % n;
+            if (amount < 0) amount += n;
+            const spliced = arr.splice(n - amount, amount);
+            arr.unshift(...spliced);
+        };
+        while (movesCount < 12) {
+            let u = Math.floor(Math.random() * 12) - 5;
+            let d = Math.floor(Math.random() * 12) - 5;
+            if (u === 0 && d === 0) continue;
+            let nextTop = [...topCuts];
+            let nextBot = [...botCuts];
+            rotateArray(nextTop, u);
+            rotateArray(nextBot, d);
+            if (nextTop[0] && nextTop[6] && nextBot[0] && nextBot[6]) {
+                scrambleOps.push(`(${u},${d})`);
+                let topRight = nextTop.slice(6, 12);
+                let botRight = nextBot.slice(6, 12);
+                let newTop = [...nextTop.slice(0, 6), ...botRight];
+                let newBot = [...nextBot.slice(0, 6), ...topRight];
+                topCuts = newTop;
+                botCuts = newBot;
+                scrambleOps.push("/");
+                movesCount++;
+            }
+        }
+        return scrambleOps.join(" ");
+    }
+    if (['pyra', 'skewb'].includes(eventId)) {
+        let last = "";
+        for (let i = 0; i < conf.len; i++) {
+            let m;
+            do { m = conf.moves[Math.floor(Math.random() * conf.moves.length)]; } while (m === last);
+            res.push(m + (Math.random() < 0.5 ? "'" : ""));
+            last = m;
+        }
+        if (eventId === 'pyra') {
+            conf.tips.forEach(t => {
+                const r = Math.floor(Math.random() * 3);
+                if (r === 1) res.push(t); else if (r === 2) res.push(t + "'");
+            });
+        }
+        return res.join(" ");
+    }
+    let lastAxis = -1;
+    let secondLastAxis = -1;
+    let lastMoveBase = "";
+    const getMoveAxis = (m) => {
+        const c = m[0];
+        if ("UD".includes(c)) return 0;
+        if ("LR".includes(c)) return 1;
+        if ("FB".includes(c)) return 2;
+        return -1;
+    };
+    for (let i = 0; i < conf.len; i++) {
+        let move, axis, base;
+        let valid = false;
+        while (!valid) {
+            move = conf.moves[Math.floor(Math.random() * conf.moves.length)];
+            axis = getMoveAxis(move);
+            base = move[0];
+            if (base === lastMoveBase) { valid = false; continue; }
+            if (axis !== -1 && axis === lastAxis && axis === secondLastAxis) { valid = false; continue; }
+            valid = true;
+        }
+        res.push(move + suffixes[Math.floor(Math.random() * 3)]);
+        secondLastAxis = lastAxis;
+        lastAxis = axis;
+        lastMoveBase = base;
+    }
+    if (eventId === '333bf') {
+        const wideMoveCount = Math.floor(Math.random() * 2) + 1;
+        for (let i = 0; i < wideMoveCount; i++) {
+            const wm = wideMoves[Math.floor(Math.random() * wideMoves.length)];
+            const suf = suffixes[Math.floor(Math.random() * 3)];
+            res.push(wm + suf);
+        }
+    } else if (conf.cat === 'blind') {
+        res.push(orientations[Math.floor(Math.random() * orientations.length)]);
+        if (Math.random() > 0.5) res.push(orientations[Math.floor(Math.random() * orientations.length)]);
+    }
+    return res.join(" ");
+}
 function escapeHtml(value) {
     return String(value)
         .replace(/&/g, "&amp;")
@@ -229,6 +392,7 @@ function updateVisualizer() {
     if (activeTool !== 'scramble') return;
     const conf = configs[currentEvent];
     const puzzleId = eventToPuzzleId[currentEvent];
+    const scrambleType = eventToScrambleId[currentEvent] || currentEvent;
     if (!twistyPlayer) return;
     if (conf?.n) {
         twistyPlayer.classList.add('hidden');
@@ -247,7 +411,9 @@ function updateVisualizer() {
     noVisualizerMsg.classList.add('hidden');
     twistyPlayer.classList.remove('hidden');
     twistyPlayer.setAttribute('puzzle', puzzleId);
-    twistyPlayer.setAttribute('alg', currentScramble || '');
+    twistyPlayer.setAttribute('scramble', currentScramble || '');
+    twistyPlayer.setAttribute('scramble-type', scrambleType);
+    twistyPlayer.removeAttribute('alg');
     twistyPlayer.setAttribute('control-panel', 'none');
     twistyPlayer.setAttribute('background', 'none');
 }
@@ -1034,158 +1200,29 @@ function generate3bldScrambleText() {
 }
 
 function generateScramble() {
-    const conf = configs[currentEvent]; if (!conf || currentEvent === '333mbf') return;
-    let res = [];
-    
-    if (currentEvent === 'minx') {
-        // Megaminx: Pochmann style, optimized
-        // 7 lines of R++ D++ ...
-        for (let i = 0; i < 7; i++) {
-            let line = [];
-            // 10 moves per line (5 pairs of R/D)
-            for (let j = 0; j < 10; j++) {
-                // WCA style: R++ or R--, D++ or D--
-                // Usually alternating R and D
-                const type = (j % 2 === 0) ? "R" : "D";
-                const suffix = (Math.random() < 0.5) ? "++" : "--";
-                line.push(type + suffix);
-            }
-            // End with U or U'
-            line.push(Math.random() < 0.5 ? "U" : "U'");
-            res.push(line.join(" "));
-        }
-        currentScramble = res.join("\n");
-        
-    } else if (currentEvent === 'clock') {
-        // WCA Clock Notation
-        const dials = ["UR", "DR", "DL", "UL", "U", "R", "D", "L", "ALL"];
-        dials.forEach(d => {
-            const v = Math.floor(Math.random() * 12) - 5; // -5 to 6
-            res.push(`${d}${v >= 0 ? '+' : ''}${v}`);
-        });
-        res.push("y2");
-        const dials2 = ["U", "R", "D", "L", "ALL"];
-        dials2.forEach(d => {
-            const v = Math.floor(Math.random() * 12) - 5;
-            res.push(`${d}${v >= 0 ? '+' : ''}${v}`);
-        });
-        // Pins: Randomly up or down
-        let pins = [];
-        ["UR", "DR", "DL", "UL"].forEach(p => {
-            if (Math.random() < 0.5) pins.push(p);
-        });
-        if (pins.length) res.push(pins.join(" "));
-        currentScramble = res.join(" ");
-        
-    } else if (currentEvent === 'sq1') {
-        // Square-1 Simulation Logic (Truncated for brevity, same as before)
-        // ... (Logic remains identical to previous version, ensuring standard randomness)
-        let topCuts = [true, false, true, true, false, true, true, false, true, true, false, true];
-        let botCuts = [true, false, true, true, false, true, true, false, true, true, false, true]; 
-        
-        let movesCount = 0;
-        let scrambleOps = [];
-        
-        const rotateArray = (arr, amt) => {
-            const n = 12;
-            let amount = amt % n;
-            if (amount < 0) amount += n;
-            const spliced = arr.splice(n - amount, amount);
-            arr.unshift(...spliced);
-        };
-
-        while (movesCount < 12) {
-            let u = Math.floor(Math.random() * 12) - 5;
-            let d = Math.floor(Math.random() * 12) - 5;
-            if (u === 0 && d === 0) continue;
-            let nextTop = [...topCuts];
-            let nextBot = [...botCuts];
-            rotateArray(nextTop, u);
-            rotateArray(nextBot, d);
-            
-            if (nextTop[0] && nextTop[6] && nextBot[0] && nextBot[6]) {
-                scrambleOps.push(`(${u},${d})`);
-                let topRight = nextTop.slice(6, 12);
-                let botRight = nextBot.slice(6, 12);
-                let newTop = [...nextTop.slice(0, 6), ...botRight];
-                let newBot = [...nextBot.slice(0, 6), ...topRight];
-                topCuts = newTop;
-                botCuts = newBot;
-                scrambleOps.push("/");
-                movesCount++;
-            }
-        }
-        currentScramble = scrambleOps.join(" ");
-
-    } else if (['pyra', 'skewb'].includes(currentEvent)) {
-        let last = "";
-        for (let i = 0; i < conf.len; i++) {
-            let m;
-            do { m = conf.moves[Math.floor(Math.random() * conf.moves.length)]; } while (m === last);
-            res.push(m + (Math.random() < 0.5 ? "'" : "")); last = m;
-        }
-        if (currentEvent === 'pyra') {
-            conf.tips.forEach(t => {
-                const r = Math.floor(Math.random() * 3);
-                if (r === 1) res.push(t); else if (r === 2) res.push(t + "'");
+    const conf = configs[currentEvent];
+    if (!conf || currentEvent === '333mbf') return;
+    const eventId = currentEvent;
+    const token = ++scrambleRequestToken;
+    const useExternal = conf.cat === 'nonstandard';
+    if (useExternal) {
+        const scrambleEventId = eventToScrambleId[eventId] || eventId;
+        loadScramblerModule()
+            .then(module => module.randomScrambleForEvent?.(scrambleEventId))
+            .then(scramble => {
+                if (token !== scrambleRequestToken || currentEvent !== eventId) return;
+                const scrambleText = normalizeScrambleText(scramble);
+                if (!scrambleText) throw new Error('Empty scramble');
+                applyScramble(scrambleText, conf, eventId);
+            })
+            .catch(() => {
+                const fallback = buildFallbackScramble(conf, eventId);
+                applyScramble(fallback, conf, eventId);
             });
-        }
-        currentScramble = res.join(" ");
-        
-    } else {
-        // NxN Logic (Same as before)
-        let lastAxis = -1;
-        let secondLastAxis = -1;
-        let lastMoveBase = "";
-        const getMoveAxis = (m) => {
-            const c = m[0]; 
-            if ("UD".includes(c)) return 0;
-            if ("LR".includes(c)) return 1;
-            if ("FB".includes(c)) return 2;
-            return -1;
-        };
-
-        for (let i = 0; i < conf.len; i++) {
-            let move, axis, base;
-            let valid = false;
-            while (!valid) {
-                move = conf.moves[Math.floor(Math.random() * conf.moves.length)];
-                axis = getMoveAxis(move);
-                base = move[0]; 
-                if (base === lastMoveBase) { valid = false; continue; }
-                if (axis !== -1 && axis === lastAxis && axis === secondLastAxis) { valid = false; continue; }
-                valid = true;
-            }
-            res.push(move + suffixes[Math.floor(Math.random() * 3)]);
-            secondLastAxis = lastAxis;
-            lastAxis = axis;
-            lastMoveBase = base;
-        }
-        if (currentEvent === '333bf') {
-            const wideMoveCount = Math.floor(Math.random() * 2) + 1;
-            for (let i = 0; i < wideMoveCount; i++) {
-                const wm = wideMoves[Math.floor(Math.random() * wideMoves.length)];
-                const suf = suffixes[Math.floor(Math.random() * 3)];
-                res.push(wm + suf);
-            }
-        } else if (conf.cat === 'blind') {
-            res.push(orientations[Math.floor(Math.random() * orientations.length)]);
-            if (Math.random() > 0.5) res.push(orientations[Math.floor(Math.random() * orientations.length)]);
-        }
-        currentScramble = res.join(" ");
+        return;
     }
-    
-    scrambleEl.innerText = currentScramble;
-    if (conf.n) { 
-        initCube(conf.n); 
-        currentScramble.split(/\s+/).filter(s => s && !orientations.includes(s) && s!=='y2').forEach(applyMove);
-    } else { 
-        cubeState={}; 
-    }
-    addScrambleHistory(currentEvent, currentScramble);
-    updateVisualizer();
-    resetPenalty();
-    if (activeTool === 'graph') renderHistoryGraph();
+    const fallback = buildFallbackScramble(conf, eventId);
+    applyScramble(fallback, conf, eventId);
 }
 
 window.generateMbfScrambles = () => {
