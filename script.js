@@ -392,6 +392,7 @@ function updateVisualizer() {
     if (activeTool !== 'scramble') return;
     const conf = configs[currentEvent];
     const puzzleId = eventToPuzzleId[currentEvent];
+    const scrambleType = eventToScrambleId[currentEvent] || currentEvent;
     if (!twistyPlayer) return;
     if (conf?.n) {
         twistyPlayer.classList.add('hidden');
@@ -411,6 +412,7 @@ function updateVisualizer() {
     twistyPlayer.classList.remove('hidden');
     twistyPlayer.setAttribute('puzzle', puzzleId);
     twistyPlayer.setAttribute('scramble', currentScramble || '');
+    twistyPlayer.setAttribute('scramble-type', scrambleType);
     twistyPlayer.removeAttribute('alg');
     twistyPlayer.setAttribute('control-panel', 'none');
     twistyPlayer.setAttribute('background', 'none');
