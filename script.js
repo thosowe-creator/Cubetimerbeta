@@ -16,6 +16,9 @@ let activeTool = 'scramble';
 let holdDuration = 300; // ms
 let wakeLock = null;
 let isWakeLockEnabled = false;
+let historyFilterPeriod = 'all';
+let historyFilterCount = 'all';
+let scrambleHistory = {};
 
 // Inspection Logic Vars
 let isInspectionMode = false;
@@ -62,6 +65,12 @@ const plus2Btn = document.getElementById('plus2Btn');
 const dnfBtn = document.getElementById('dnfBtn');
 const visualizerCanvas = document.getElementById('cubeVisualizer');
 const noVisualizerMsg = document.getElementById('noVisualizerMsg');
+const twistyPlayer = document.getElementById('twistyPlayer');
+const historyPeriodFilter = document.getElementById('historyPeriodFilter');
+const historyCountFilter = document.getElementById('historyCountFilter');
+const mbfSolvedInput = document.getElementById('mbfSolvedInput');
+const mbfAttemptedInput = document.getElementById('mbfAttemptedInput');
+const mbfTimeInput = document.getElementById('mbfTimeInput');
 const avgModeToggle = document.getElementById('avgModeToggle');
 const precisionToggle = document.getElementById('precisionToggle');
 const manualEntryToggle = document.getElementById('manualEntryToggle');
@@ -96,12 +105,328 @@ const configs = {
     '333mbf': { moves: ["U","D","L","R","F","B"], len: 21, n: 3, cat: 'blind' }
 };
 
+var eventToPuzzleId = window.eventToPuzzleId || {
+    '333': '3x3x3',
+    '333oh': '3x3x3',
+    '222': '2x2x2',
+    '444': '4x4x4',
+    '555': '5x5x5',
+    '666': '6x6x6',
+    '777': '7x7x7',
+    'minx': 'megaminx',
+    'pyra': 'pyraminx',
+    'clock': 'clock',
+    'skewb': 'skewb',
+    'sq1': 'square1',
+    '333bf': '3x3x3',
+    '444bf': '4x4x4',
+    '555bf': '5x5x5',
+    '333mbf': '3x3x3'
+};
+
+var eventToScrambleId = window.eventToScrambleId || {
+    'minx': 'megaminx',
+    'pyra': 'pyraminx',
+    'clock': 'clock',
+    'skewb': 'skewb',
+    'sq1': 'square1'
+};
+window.eventToPuzzleId = eventToPuzzleId;
+window.eventToScrambleId = eventToScrambleId;
+
 const suffixes = ["", "'", "2"];
 const orientations = ["x", "x'", "x2", "y", "y'", "y2", "z", "z'", "z2"];
 const wideMoves = ["Uw", "Dw", "Lw", "Rw", "Fw", "Bw"]; 
 
 let cubeState = {};
 const COLORS = { U: '#FFFFFF', D: '#FFD500', L: '#FF8C00', R: '#DC2626', F: '#16A34A', B: '#2563EB' };
+
+const filterPresets = {
+    all: null,
+    today: 0,
+    '7d': 7,
+    '30d': 30
+};
+
+window.addEventListener('load', () => {
+    alert('A bug has occurred.');
+});
+
+let scrambleRequestToken = 0;
+let scrambleModulePromise = null;
+
+function loadScramblerModule() {
+    if (!scrambleModulePromise) {
+        scrambleModulePromise = import('https://unpkg.com/cubing@0.57.1/dist/cubing/scramble.js');
+    }
+    return scrambleModulePromise;
+}
+
+function normalizeScrambleText(scramble) {
+    if (!scramble) return '';
+    if (typeof scramble === 'string') return scramble;
+    if (typeof scramble.toString === 'function') return scramble.toString();
+    return String(scramble);
+}
+
+function applyScramble(scrambleText, conf, eventId) {
+    if (currentEvent !== eventId) return;
+    currentScramble = scrambleText;
+    scrambleEl.innerText = currentScramble;
+    if (conf.n) {
+        initCube(conf.n);
+        currentScramble
+            .split(/\s+/)
+            .filter(s => s && !orientations.includes(s) && s !== 'y2')
+            .forEach(applyMove);
+    } else {
+        cubeState = {};
+    }
+    addScrambleHistory(eventId, currentScramble);
+    updateVisualizer();
+    resetPenalty();
+    if (activeTool === 'graph') renderHistoryGraph();
+}
+
+function buildFallbackScramble(conf, eventId) {
+    let res = [];
+    if (eventId === 'minx') {
+        for (let i = 0; i < 7; i++) {
+            let line = [];
+            for (let j = 0; j < 10; j++) {
+                const type = (j % 2 === 0) ? "R" : "D";
+                const suffix = (Math.random() < 0.5) ? "++" : "--";
+                line.push(type + suffix);
+            }
+            line.push(Math.random() < 0.5 ? "U" : "U'");
+            res.push(line.join(" "));
+        }
+        return res.join("\n");
+    }
+    if (eventId === 'clock') {
+        const dials = ["UR", "DR", "DL", "UL", "U", "R", "D", "L", "ALL"];
+        dials.forEach(d => {
+            const v = Math.floor(Math.random() * 12) - 5;
+            res.push(`${d}${v >= 0 ? '+' : ''}${v}`);
+        });
+        res.push("y2");
+        const dials2 = ["U", "R", "D", "L", "ALL"];
+        dials2.forEach(d => {
+            const v = Math.floor(Math.random() * 12) - 5;
+            res.push(`${d}${v >= 0 ? '+' : ''}${v}`);
+        });
+        let pins = [];
+        ["UR", "DR", "DL", "UL"].forEach(p => {
+            if (Math.random() < 0.5) pins.push(p);
+        });
+        if (pins.length) res.push(pins.join(" "));
+        return res.join(" ");
+    }
+    if (eventId === 'sq1') {
+        let topCuts = [true, false, true, true, false, true, true, false, true, true, false, true];
+        let botCuts = [true, false, true, true, false, true, true, false, true, true, false, true];
+        let movesCount = 0;
+        let scrambleOps = [];
+        const rotateArray = (arr, amt) => {
+            const n = 12;
+            let amount = amt % n;
+            if (amount < 0) amount += n;
+            const spliced = arr.splice(n - amount, amount);
+            arr.unshift(...spliced);
+        };
+        while (movesCount < 12) {
+            let u = Math.floor(Math.random() * 12) - 5;
+            let d = Math.floor(Math.random() * 12) - 5;
+            if (u === 0 && d === 0) continue;
+            let nextTop = [...topCuts];
+            let nextBot = [...botCuts];
+            rotateArray(nextTop, u);
+            rotateArray(nextBot, d);
+            if (nextTop[0] && nextTop[6] && nextBot[0] && nextBot[6]) {
+                scrambleOps.push(`(${u},${d})`);
+                let topRight = nextTop.slice(6, 12);
+                let botRight = nextBot.slice(6, 12);
+                let newTop = [...nextTop.slice(0, 6), ...botRight];
+                let newBot = [...nextBot.slice(0, 6), ...topRight];
+                topCuts = newTop;
+                botCuts = newBot;
+                scrambleOps.push("/");
+                movesCount++;
+            }
+        }
+        return scrambleOps.join(" ");
+    }
+    if (['pyra', 'skewb'].includes(eventId)) {
+        let last = "";
+        for (let i = 0; i < conf.len; i++) {
+            let m;
+            do { m = conf.moves[Math.floor(Math.random() * conf.moves.length)]; } while (m === last);
+            res.push(m + (Math.random() < 0.5 ? "'" : ""));
+            last = m;
+        }
+        if (eventId === 'pyra') {
+            conf.tips.forEach(t => {
+                const r = Math.floor(Math.random() * 3);
+                if (r === 1) res.push(t); else if (r === 2) res.push(t + "'");
+            });
+        }
+        return res.join(" ");
+    }
+    let lastAxis = -1;
+    let secondLastAxis = -1;
+    let lastMoveBase = "";
+    const getMoveAxis = (m) => {
+        const c = m[0];
+        if ("UD".includes(c)) return 0;
+        if ("LR".includes(c)) return 1;
+        if ("FB".includes(c)) return 2;
+        return -1;
+    };
+    for (let i = 0; i < conf.len; i++) {
+        let move, axis, base;
+        let valid = false;
+        while (!valid) {
+            move = conf.moves[Math.floor(Math.random() * conf.moves.length)];
+            axis = getMoveAxis(move);
+            base = move[0];
+            if (base === lastMoveBase) { valid = false; continue; }
+            if (axis !== -1 && axis === lastAxis && axis === secondLastAxis) { valid = false; continue; }
+            valid = true;
+        }
+        res.push(move + suffixes[Math.floor(Math.random() * 3)]);
+        secondLastAxis = lastAxis;
+        lastAxis = axis;
+        lastMoveBase = base;
+    }
+    if (eventId === '333bf') {
+        const wideMoveCount = Math.floor(Math.random() * 2) + 1;
+        for (let i = 0; i < wideMoveCount; i++) {
+            const wm = wideMoves[Math.floor(Math.random() * wideMoves.length)];
+            const suf = suffixes[Math.floor(Math.random() * 3)];
+            res.push(wm + suf);
+        }
+    } else if (conf.cat === 'blind') {
+        res.push(orientations[Math.floor(Math.random() * orientations.length)]);
+        if (Math.random() > 0.5) res.push(orientations[Math.floor(Math.random() * orientations.length)]);
+    }
+    return res.join(" ");
+}
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function getSolveTimestamp(solve) {
+    if (typeof solve.timestamp === 'number') return solve.timestamp;
+    if (!solve.date) return Date.now();
+    const cleaned = solve.date.replace(/\s/g, '').replace(/\.$/, '');
+    const parts = cleaned.split('.').filter(Boolean);
+    if (parts.length >= 3) {
+        const [year, month, day] = parts.map(Number);
+        if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+            return new Date(year, month - 1, day).getTime();
+        }
+    }
+    return Date.now();
+}
+
+function parseTimeToMs(value) {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (trimmed.includes(':')) {
+        const [minStr, secStr] = trimmed.split(':');
+        const minutes = parseInt(minStr, 10);
+        const seconds = parseFloat(secStr);
+        if (Number.isNaN(minutes) || Number.isNaN(seconds)) return null;
+        return (minutes * 60 + seconds) * 1000;
+    }
+    const seconds = parseFloat(trimmed);
+    if (Number.isNaN(seconds)) return null;
+    return seconds * 1000;
+}
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-8px)';
+        setTimeout(() => toast.remove(), 200);
+    }, 2200);
+}
+
+function addScrambleHistory(eventId, scramble) {
+    if (!scramble) return;
+    if (!scrambleHistory[eventId]) scrambleHistory[eventId] = [];
+    const history = scrambleHistory[eventId];
+    if (history[0] === scramble) return;
+    history.unshift(scramble);
+    if (history.length > 20) history.pop();
+}
+
+function getScrambleHistory(eventId) {
+    return scrambleHistory[eventId] || [];
+}
+
+function getFilteredSolves(eventId = currentEvent) {
+    const sid = getCurrentSessionId();
+    let list = solves.filter(s => s.event === eventId && s.sessionId === sid);
+    const days = filterPresets[historyFilterPeriod];
+    if (days !== null && days !== undefined) {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const cutoff = days === 0 ? start : now.getTime() - days * 24 * 60 * 60 * 1000;
+        list = list.filter(s => getSolveTimestamp(s) >= cutoff);
+    }
+    if (historyFilterCount !== 'all') {
+        const count = parseInt(historyFilterCount, 10);
+        if (!Number.isNaN(count)) list = list.slice(0, count);
+    }
+    return list;
+}
+
+function updateFilterControls() {
+    if (historyPeriodFilter) historyPeriodFilter.value = historyFilterPeriod;
+    if (historyCountFilter) historyCountFilter.value = historyFilterCount;
+}
+
+function updateVisualizer() {
+    if (activeTool !== 'scramble') return;
+    const conf = configs[currentEvent];
+    const puzzleId = eventToPuzzleId[currentEvent];
+    const scrambleType = eventToScrambleId[currentEvent] || puzzleId || currentEvent;
+    if (!twistyPlayer) return;
+    if (conf?.n) {
+        twistyPlayer.classList.add('hidden');
+        visualizerCanvas.style.display = 'block';
+        noVisualizerMsg.classList.add('hidden');
+        drawCube();
+        return;
+    }
+    visualizerCanvas.style.display = 'none';
+    if (!puzzleId) {
+        twistyPlayer.classList.add('hidden');
+        noVisualizerMsg.innerText = "Visualizer not available";
+        noVisualizerMsg.classList.remove('hidden');
+        return;
+    }
+    noVisualizerMsg.classList.add('hidden');
+    twistyPlayer.classList.remove('hidden');
+    twistyPlayer.setAttribute('puzzle', puzzleId);
+    twistyPlayer.setAttribute('scramble', currentScramble || '');
+    twistyPlayer.setAttribute('scramble-type', scrambleType);
+    twistyPlayer.removeAttribute('alg');
+    twistyPlayer.setAttribute('control-panel', 'none');
+    twistyPlayer.setAttribute('background', 'none');
+}
 
 // --- Mobile Tab Logic ---
 window.switchMobileTab = (tab) => {
@@ -471,6 +796,7 @@ function stopTimer(forcedTime = null) {
     lastStopTimestamp = Date.now(); 
     
     let finalPenalty = inspectionPenalty; 
+    const previousStats = getStatsSummary();
 
     if (elapsed > 10 || finalPenalty === 'DNF') {
         solves.unshift({
@@ -480,7 +806,8 @@ function stopTimer(forcedTime = null) {
             event: currentEvent, 
             sessionId: getCurrentSessionId(), 
             penalty: finalPenalty,
-            date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "")
+            date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, ""),
+            timestamp: Date.now()
         });
         
         if (finalPenalty === 'DNF') {
@@ -499,6 +826,18 @@ function stopTimer(forcedTime = null) {
     inspectionPenalty = null; 
     
     updateUI(); 
+    if (currentEvent !== '333mbf') {
+        const nextStats = getStatsSummary();
+        if (previousStats.best && nextStats.best && nextStats.best < previousStats.best) {
+            showToast('New Personal Best!');
+        }
+        if (previousStats.primaryAvg !== nextStats.primaryAvg && nextStats.primaryAvg && nextStats.primaryAvg !== '-' && nextStats.primaryAvg !== 'DNF') {
+            showToast(`New ${isAo5Mode ? 'Ao5' : 'Mo3'}!`);
+        }
+        if (previousStats.ao12 !== nextStats.ao12 && nextStats.ao12 && nextStats.ao12 !== '-' && nextStats.ao12 !== 'DNF') {
+            showToast('New Ao12!');
+        }
+    }
     generateScramble();
     statusHint.innerText = isBtConnected ? "Ready (Bluetooth)" : (isInspectionMode ? "Start Inspection" : "Hold to Ready"); 
     timerEl.classList.remove('text-running', 'text-ready'); 
@@ -551,10 +890,12 @@ function exportData() {
             precision, 
             isAo5Mode, 
             currentEvent, 
-            holdDuration, 
-            isDarkMode: document.documentElement.classList.contains('dark'), 
+            holdDuration,
+            isDarkMode: document.documentElement.classList.contains('dark'),
             isWakeLockEnabled,
-            isInspectionMode 
+            isInspectionMode,
+            historyFilterPeriod,
+            historyFilterCount
         }
     };
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
@@ -588,6 +929,8 @@ function importData(event) {
                     isWakeLockEnabled = data.settings.isWakeLockEnabled || false;
                     const isDark = data.settings.isDarkMode || false;
                     isInspectionMode = data.settings.isInspectionMode || false;
+                    historyFilterPeriod = data.settings.historyFilterPeriod || 'all';
+                    historyFilterCount = data.settings.historyFilterCount || 'all';
                     
                     precisionToggle.checked = (precision === 3);
                     avgModeToggle.checked = isAo5Mode;
@@ -603,6 +946,7 @@ function importData(event) {
 
                     document.documentElement.classList.toggle('dark', isDark);
                     if(isWakeLockEnabled) requestWakeLock();
+                    updateFilterControls();
                 }
                 saveData();
                 location.reload(); 
@@ -622,10 +966,12 @@ function saveData() {
             precision, 
             isAo5Mode, 
             currentEvent, 
-            holdDuration,
-            isDarkMode: document.documentElement.classList.contains('dark'),
+            holdDuration, 
+            isDarkMode: document.documentElement.classList.contains('dark'), 
             isWakeLockEnabled,
-            isInspectionMode
+            isInspectionMode,
+            historyFilterPeriod,
+            historyFilterCount
         }
     };
     localStorage.setItem('cubeTimerData_v5', JSON.stringify(data));
@@ -646,6 +992,8 @@ function loadData() {
                 const isDark = data.settings.isDarkMode || false;
                 isWakeLockEnabled = data.settings.isWakeLockEnabled || false;
                 isInspectionMode = data.settings.isInspectionMode || false;
+                historyFilterPeriod = data.settings.historyFilterPeriod || 'all';
+                historyFilterCount = data.settings.historyFilterCount || 'all';
 
                 precisionToggle.checked = (precision === 3);
                 avgModeToggle.checked = isAo5Mode;
@@ -657,11 +1005,12 @@ function loadData() {
                     toggleInspection(inspectionToggle);
                 } else {
                     holdDurationSlider.value = holdDuration / 1000;
-                    holdDurationValue.innerText = holdDurationSlider.value + "s";
+                    updateHoldDuration(holdDurationSlider.value);
                 }
 
                 document.documentElement.classList.toggle('dark', isDark);
                 if(isWakeLockEnabled) requestWakeLock();
+                updateFilterControls();
 
                 const conf = configs[currentEvent];
                 if (conf) switchCategory(conf.cat, false);
@@ -673,6 +1022,7 @@ function loadData() {
     if (!isBtConnected) {
         statusHint.innerText = isInspectionMode ? "Start Inspection" : "Hold to Ready";
     }
+    updateFilterControls();
 }
 
 function initSessionIfNeeded(eventId) {
@@ -724,14 +1074,9 @@ function applyMove(move) {
 }
 function drawCube() {
     const n = cubeState.n;
-    if(!n || configs[currentEvent]?.cat === 'blind') { 
-        visualizerCanvas.style.display='none'; 
-        noVisualizerMsg.innerText = configs[currentEvent]?.cat === 'blind' ? "Scramble images disabled for Blind" : "Visualizer for standard cubes only";
-        noVisualizerMsg.classList.remove('hidden'); 
+    if(!n) { 
         return; 
     }
-    visualizerCanvas.style.display='block'; 
-    noVisualizerMsg.classList.add('hidden');
     const ctx = visualizerCanvas.getContext('2d');
     const faceS = 55, tileS = faceS/n, gap = 4;
     ctx.clearRect(0,0,260,190);
@@ -752,27 +1097,27 @@ function drawCube() {
 window.toggleToolsMenu = (e) => { e.stopPropagation(); document.getElementById('toolsDropdown').classList.toggle('show'); };
 window.selectTool = (tool) => {
     activeTool = tool;
-    const isBlind = configs[currentEvent]?.cat === 'blind';
-    document.getElementById('toolLabel').innerText = isBlind ? 'N/A (Blind)' : (tool === 'scramble' ? 'Scramble Image' : 'Graph (Trends)');
+    document.getElementById('toolLabel').innerText = tool === 'scramble' ? 'Scramble Image' : 'Graph (Trends)';
     document.getElementById('visualizerWrapper').classList.toggle('hidden', tool !== 'scramble');
     document.getElementById('graphWrapper').classList.toggle('hidden', tool !== 'graph');
     document.querySelectorAll('.tool-option').forEach(opt => opt.classList.remove('active'));
     document.getElementById(`tool-opt-${tool}`).classList.add('active');
     document.getElementById('toolsDropdown').classList.remove('show');
     if (tool === 'graph') renderHistoryGraph();
-    else if (tool === 'scramble') drawCube();
+    else if (tool === 'scramble') updateVisualizer();
 };
 window.addEventListener('click', () => { document.getElementById('toolsDropdown').classList.remove('show'); });
 
 function renderHistoryGraph() {
     if (activeTool !== 'graph') return;
-    const sid = getCurrentSessionId();
-    const filtered = [...solves].filter(s => s.event === currentEvent && s.sessionId === sid).reverse();
+    const filtered = [...getFilteredSolves()].reverse();
     const polyline = document.getElementById('graphLine');
     if (filtered.length < 2) { polyline.setAttribute('points', ""); return; }
     const validTimes = filtered.map(s => s.penalty === 'DNF' ? null : (s.penalty === '+2' ? s.time + 2000 : s.time));
-    const maxTime = Math.max(...validTimes.filter(t => t !== null));
-    const minTime = Math.min(...validTimes.filter(t => t !== null));
+    const validOnly = validTimes.filter(t => t !== null);
+    if (!validOnly.length) { polyline.setAttribute('points', ""); return; }
+    const maxTime = Math.max(...validOnly);
+    const minTime = Math.min(...validOnly);
     const range = maxTime - minTime || 1;
     const points = filtered.map((s, i) => {
         const t = s.penalty === 'DNF' ? maxTime : (s.penalty === '+2' ? s.time + 2000 : s.time);
@@ -824,13 +1169,8 @@ function changeEvent(e) {
         activeTab.classList.remove('text-slate-500', 'dark:text-slate-400');
     }
     
-    if (conf.cat === 'blind') {
-        activeTool = 'graph'; 
-        selectTool('graph');
-    } else {
-        if (activeTool === 'graph') selectTool('graph');
-        else selectTool('scramble');
-    }
+    if (activeTool === 'graph') selectTool('graph');
+    else selectTool('scramble');
 
     if (['666', '777', '333bf', '444bf', '555bf', '333mbf'].includes(e)) { 
         isAo5Mode = false; avgModeToggle.checked = false; 
@@ -841,6 +1181,8 @@ function changeEvent(e) {
     if (currentEvent === '333mbf') {
         scrambleEl.classList.add('hidden');
         mbfInputArea.classList.remove('hidden');
+        currentScramble = '';
+        updateVisualizer();
     } else {
         scrambleEl.classList.remove('hidden');
         mbfInputArea.classList.add('hidden');
@@ -868,151 +1210,29 @@ function generate3bldScrambleText() {
 }
 
 function generateScramble() {
-    const conf = configs[currentEvent]; if (!conf || currentEvent === '333mbf') return;
-    let res = [];
-    
-    if (currentEvent === 'minx') {
-        // Megaminx: Pochmann style, optimized
-        // 7 lines of R++ D++ ...
-        for (let i = 0; i < 7; i++) {
-            let line = [];
-            // 10 moves per line (5 pairs of R/D)
-            for (let j = 0; j < 10; j++) {
-                // WCA style: R++ or R--, D++ or D--
-                // Usually alternating R and D
-                const type = (j % 2 === 0) ? "R" : "D";
-                const suffix = (Math.random() < 0.5) ? "++" : "--";
-                line.push(type + suffix);
-            }
-            // End with U or U'
-            line.push(Math.random() < 0.5 ? "U" : "U'");
-            res.push(line.join(" "));
-        }
-        currentScramble = res.join("\n");
-        
-    } else if (currentEvent === 'clock') {
-        // WCA Clock Notation
-        const dials = ["UR", "DR", "DL", "UL", "U", "R", "D", "L", "ALL"];
-        dials.forEach(d => {
-            const v = Math.floor(Math.random() * 12) - 5; // -5 to 6
-            res.push(`${d}${v >= 0 ? '+' : ''}${v}`);
-        });
-        res.push("y2");
-        const dials2 = ["U", "R", "D", "L", "ALL"];
-        dials2.forEach(d => {
-            const v = Math.floor(Math.random() * 12) - 5;
-            res.push(`${d}${v >= 0 ? '+' : ''}${v}`);
-        });
-        // Pins: Randomly up or down
-        let pins = [];
-        ["UR", "DR", "DL", "UL"].forEach(p => {
-            if (Math.random() < 0.5) pins.push(p);
-        });
-        if (pins.length) res.push(pins.join(" "));
-        currentScramble = res.join(" ");
-        
-    } else if (currentEvent === 'sq1') {
-        // Square-1 Simulation Logic (Truncated for brevity, same as before)
-        // ... (Logic remains identical to previous version, ensuring standard randomness)
-        let topCuts = [true, false, true, true, false, true, true, false, true, true, false, true];
-        let botCuts = [true, false, true, true, false, true, true, false, true, true, false, true]; 
-        
-        let movesCount = 0;
-        let scrambleOps = [];
-        
-        const rotateArray = (arr, amt) => {
-            const n = 12;
-            let amount = amt % n;
-            if (amount < 0) amount += n;
-            const spliced = arr.splice(n - amount, amount);
-            arr.unshift(...spliced);
-        };
-
-        while (movesCount < 12) {
-            let u = Math.floor(Math.random() * 12) - 5;
-            let d = Math.floor(Math.random() * 12) - 5;
-            if (u === 0 && d === 0) continue;
-            let nextTop = [...topCuts];
-            let nextBot = [...botCuts];
-            rotateArray(nextTop, u);
-            rotateArray(nextBot, d);
-            
-            if (nextTop[0] && nextTop[6] && nextBot[0] && nextBot[6]) {
-                scrambleOps.push(`(${u},${d})`);
-                let topRight = nextTop.slice(6, 12);
-                let botRight = nextBot.slice(6, 12);
-                let newTop = [...nextTop.slice(0, 6), ...botRight];
-                let newBot = [...nextBot.slice(0, 6), ...topRight];
-                topCuts = newTop;
-                botCuts = newBot;
-                scrambleOps.push("/");
-                movesCount++;
-            }
-        }
-        currentScramble = scrambleOps.join(" ");
-
-    } else if (['pyra', 'skewb'].includes(currentEvent)) {
-        let last = "";
-        for (let i = 0; i < conf.len; i++) {
-            let m;
-            do { m = conf.moves[Math.floor(Math.random() * conf.moves.length)]; } while (m === last);
-            res.push(m + (Math.random() < 0.5 ? "'" : "")); last = m;
-        }
-        if (currentEvent === 'pyra') {
-            conf.tips.forEach(t => {
-                const r = Math.floor(Math.random() * 3);
-                if (r === 1) res.push(t); else if (r === 2) res.push(t + "'");
+    const conf = configs[currentEvent];
+    if (!conf || currentEvent === '333mbf') return;
+    const eventId = currentEvent;
+    const token = ++scrambleRequestToken;
+    const useExternal = conf.cat === 'nonstandard';
+    if (useExternal) {
+        const scrambleEventId = eventToScrambleId[eventId] || eventId;
+        loadScramblerModule()
+            .then(module => module.randomScrambleForEvent?.(scrambleEventId))
+            .then(scramble => {
+                if (token !== scrambleRequestToken || currentEvent !== eventId) return;
+                const scrambleText = normalizeScrambleText(scramble);
+                if (!scrambleText) throw new Error('Empty scramble');
+                applyScramble(scrambleText, conf, eventId);
+            })
+            .catch(() => {
+                const fallback = buildFallbackScramble(conf, eventId);
+                applyScramble(fallback, conf, eventId);
             });
-        }
-        currentScramble = res.join(" ");
-        
-    } else {
-        // NxN Logic (Same as before)
-        let lastAxis = -1;
-        let secondLastAxis = -1;
-        let lastMoveBase = "";
-        const getMoveAxis = (m) => {
-            const c = m[0]; 
-            if ("UD".includes(c)) return 0;
-            if ("LR".includes(c)) return 1;
-            if ("FB".includes(c)) return 2;
-            return -1;
-        };
-
-        for (let i = 0; i < conf.len; i++) {
-            let move, axis, base;
-            let valid = false;
-            while (!valid) {
-                move = conf.moves[Math.floor(Math.random() * conf.moves.length)];
-                axis = getMoveAxis(move);
-                base = move[0]; 
-                if (base === lastMoveBase) { valid = false; continue; }
-                if (axis !== -1 && axis === lastAxis && axis === secondLastAxis) { valid = false; continue; }
-                valid = true;
-            }
-            res.push(move + suffixes[Math.floor(Math.random() * 3)]);
-            secondLastAxis = lastAxis;
-            lastAxis = axis;
-            lastMoveBase = base;
-        }
-        if (currentEvent === '333bf') {
-            const wideMoveCount = Math.floor(Math.random() * 2) + 1;
-            for (let i = 0; i < wideMoveCount; i++) {
-                const wm = wideMoves[Math.floor(Math.random() * wideMoves.length)];
-                const suf = suffixes[Math.floor(Math.random() * 3)];
-                res.push(wm + suf);
-            }
-        } else if (conf.cat === 'blind') {
-            res.push(orientations[Math.floor(Math.random() * orientations.length)]);
-            if (Math.random() > 0.5) res.push(orientations[Math.floor(Math.random() * orientations.length)]);
-        }
-        currentScramble = res.join(" ");
+        return;
     }
-    
-    scrambleEl.innerText = currentScramble;
-    if (conf.n) { initCube(conf.n); currentScramble.split(/\s+/).filter(s => s && !orientations.includes(s) && s!=='y2').forEach(applyMove); drawCube(); } else { cubeState={}; drawCube(); }
-    resetPenalty();
-    if (activeTool === 'graph') renderHistoryGraph();
+    const fallback = buildFallbackScramble(conf, eventId);
+    applyScramble(fallback, conf, eventId);
 }
 
 window.generateMbfScrambles = () => {
@@ -1034,6 +1254,8 @@ window.generateMbfScrambles = () => {
     }
     document.getElementById('mbfScrambleOverlay').classList.add('active');
     currentScramble = `Multi-Blind (${count} Cubes Attempt)`;
+    addScrambleHistory(currentEvent, currentScramble);
+    updateVisualizer();
 };
 
 window.closeMbfScrambleModal = () => document.getElementById('mbfScrambleOverlay').classList.remove('active');
@@ -1046,6 +1268,75 @@ window.copyMbfText = () => {
     document.execCommand('copy'); document.body.removeChild(textArea);
     const btn = document.querySelector('[onclick="copyMbfText()"]');
     const original = btn.innerText; btn.innerText = "Copied!"; setTimeout(() => btn.innerText = original, 2000);
+};
+
+window.saveMbfResult = () => {
+    if (currentEvent !== '333mbf') return;
+    const solved = parseInt(mbfSolvedInput.value, 10);
+    const attempted = parseInt(mbfAttemptedInput.value, 10);
+    const timeMs = parseTimeToMs(mbfTimeInput.value);
+    if (Number.isNaN(solved) || Number.isNaN(attempted) || attempted <= 0 || solved < 0) {
+        showToast('Enter valid solved/attempted counts', 'warning');
+        return;
+    }
+    const now = Date.now();
+    const timeLabel = timeMs ? formatTime(timeMs) : '-';
+    solves.unshift({
+        id: now,
+        time: timeMs || 0,
+        scramble: `MBF ${solved}/${attempted} • ${timeLabel}`,
+        event: currentEvent,
+        sessionId: getCurrentSessionId(),
+        penalty: null,
+        mbfSolved: solved,
+        mbfAttempted: attempted,
+        mbfTimeMs: timeMs,
+        date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, ""),
+        timestamp: now
+    });
+    mbfSolvedInput.value = '';
+    mbfAttemptedInput.value = '';
+    mbfTimeInput.value = '';
+    updateUI();
+    saveData();
+    showToast('MBF result saved');
+};
+
+window.openScrambleHistoryModal = () => {
+    const list = document.getElementById('scrambleHistoryList');
+    const history = getScrambleHistory(currentEvent);
+    if (!history.length) {
+        list.innerHTML = '<div class="text-center text-slate-300 text-[11px] italic">No scrambles yet</div>';
+    } else {
+        list.innerHTML = history.map((scramble, idx) => `
+            <div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="text-[10px] font-bold text-slate-400">#${history.length - idx}</div>
+                    <div class="text-xs font-bold text-slate-600 dark:text-slate-300 whitespace-pre-wrap flex-1">${escapeHtml(scramble)}</div>
+                    <button onclick="useScrambleFromHistory(${idx})" class="text-[10px] font-bold text-blue-500 hover:underline">Use</button>
+                </div>
+            </div>
+        `).join('');
+    }
+    document.getElementById('scrambleHistoryOverlay').classList.add('active');
+};
+
+window.closeScrambleHistoryModal = () => document.getElementById('scrambleHistoryOverlay').classList.remove('active');
+
+window.useScrambleFromHistory = (idx) => {
+    const history = getScrambleHistory(currentEvent);
+    const selected = history[idx];
+    if (!selected) return;
+    currentScramble = selected;
+    scrambleEl.innerText = currentScramble;
+    if (configs[currentEvent]?.n) {
+        initCube(configs[currentEvent].n);
+        currentScramble.split(/\s+/).filter(s => s && !orientations.includes(s) && s!=='y2').forEach(applyMove);
+    } else {
+        cubeState = {};
+    }
+    updateVisualizer();
+    closeScrambleHistoryModal();
 };
 
 // [UPDATED] Format Time to support Minutes:Seconds format
@@ -1071,32 +1362,62 @@ function formatTime(ms) {
     return seconds;
 } 
 
+function getStatsSummary() {
+    if (currentEvent === '333mbf') {
+        return { best: null, primaryAvg: null, ao12: null };
+    }
+    const filtered = getFilteredSolves();
+    const valid = filtered.filter(s=>s.penalty!=='DNF').map(s=>s.penalty==='+2'?s.time+2000:s.time);
+    const best = valid.length ? Math.min(...valid) : null;
+    const primaryAvg = isAo5Mode ? calculateAvg(filtered, 5) : calculateAvg(filtered, 3, true);
+    const ao12 = calculateAvg(filtered, 12);
+    return { best, primaryAvg, ao12 };
+}
+
 // Updated UpdateUI with Lazy Loading support
 function updateUI() {
-    const sid = getCurrentSessionId();
-    let filtered = solves.filter(s => s.event === currentEvent && s.sessionId === sid);
+    const filtered = getFilteredSolves();
     const activeSession = (sessions[currentEvent] || []).find(s => s.isActive);
     if (activeSession) document.getElementById('currentSessionNameDisplay').innerText = activeSession.name;
     
     // Lazy Render Logic
     const subset = filtered.slice(0, displayedSolvesCount);
     
-    historyList.innerHTML = subset.map(s => `
-        <div class="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3 rounded-xl flex justify-between items-center group cursor-pointer hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm transition-all" onclick="showSolveDetails(${s.id})">
-            <span class="font-bold text-slate-700 dark:text-slate-200 text-sm">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span>
-            <button onclick="event.stopPropagation(); deleteSolve(${s.id})" class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-        </div>
-    `).join('') || '<div class="text-center py-10 text-slate-300 text-[11px] italic">No solves yet</div>';
+    historyList.innerHTML = subset.map(s => {
+        let label = '';
+        if (s.event === '333mbf') {
+            const solved = s.mbfSolved ?? '-';
+            const attempted = s.mbfAttempted ?? '-';
+            const timeLabel = s.mbfTimeMs ? formatTime(s.mbfTimeMs) : '-';
+            label = `MBF ${solved}/${attempted} (${timeLabel})`;
+        } else {
+            label = `${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}`;
+        }
+        return `
+            <div class="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-3 rounded-xl flex justify-between items-center group cursor-pointer hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm transition-all" onclick="showSolveDetails(${s.id})">
+                <span class="font-bold text-slate-700 dark:text-slate-200 text-sm">${escapeHtml(label)}</span>
+                <button onclick="event.stopPropagation(); deleteSolve(${s.id})" class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+        `;
+    }).join('') || '<div class="text-center py-10 text-slate-300 text-[11px] italic">No solves yet</div>';
 
     solveCountEl.innerText = filtered.length;
-    if (isAo5Mode) { labelPrimaryAvg.innerText = "Ao5"; displayPrimaryAvg.innerText = calculateAvg(filtered, 5); } 
-    else { labelPrimaryAvg.innerText = "Mo3"; displayPrimaryAvg.innerText = calculateAvg(filtered, 3, true); }
-    displayAo12.innerText = calculateAvg(filtered, 12);
-    let valid = filtered.filter(s=>s.penalty!=='DNF').map(s=>s.penalty==='+2'?s.time+2000:s.time);
-    sessionAvgEl.innerText = valid.length ? formatTime(valid.reduce((a,b)=>a+b,0)/valid.length) : "-";
-    bestSolveEl.innerText = valid.length ? formatTime(Math.min(...valid)) : "-";
+    if (currentEvent === '333mbf') {
+        labelPrimaryAvg.innerText = "MBF";
+        displayPrimaryAvg.innerText = "-";
+        displayAo12.innerText = "-";
+        sessionAvgEl.innerText = "-";
+        bestSolveEl.innerText = "-";
+    } else {
+        if (isAo5Mode) { labelPrimaryAvg.innerText = "Ao5"; displayPrimaryAvg.innerText = calculateAvg(filtered, 5); } 
+        else { labelPrimaryAvg.innerText = "Mo3"; displayPrimaryAvg.innerText = calculateAvg(filtered, 3, true); }
+        displayAo12.innerText = calculateAvg(filtered, 12);
+        let valid = filtered.filter(s=>s.penalty!=='DNF').map(s=>s.penalty==='+2'?s.time+2000:s.time);
+        sessionAvgEl.innerText = valid.length ? formatTime(valid.reduce((a,b)=>a+b,0)/valid.length) : "-";
+        bestSolveEl.innerText = valid.length ? formatTime(Math.min(...valid)) : "-";
+    }
     if (activeTool === 'graph') renderHistoryGraph();
 }
 
@@ -1104,8 +1425,7 @@ function updateUI() {
 historyList.addEventListener('scroll', () => {
     if (historyList.scrollTop + historyList.clientHeight >= historyList.scrollHeight - 50) {
         // Near bottom
-        const sid = getCurrentSessionId();
-        const total = solves.filter(s => s.event === currentEvent && s.sessionId === sid).length;
+        const total = getFilteredSolves().length;
         if (displayedSolvesCount < total) {
             displayedSolvesCount += SOLVES_BATCH_SIZE;
             updateUI(); // Re-render with more items
@@ -1115,8 +1435,11 @@ historyList.addEventListener('scroll', () => {
 
 // Extended Stats Modal Logic
 window.showExtendedStats = () => {
-    const sid = getCurrentSessionId();
-    const filtered = solves.filter(s => s.event === currentEvent && s.sessionId === sid);
+    if (currentEvent === '333mbf') {
+        showToast('MBF stats are not available', 'warning');
+        return;
+    }
+    const filtered = getFilteredSolves();
     
     const ao25 = calculateAvg(filtered, 25);
     const ao50 = calculateAvg(filtered, 50);
@@ -1166,7 +1489,7 @@ function handleStart(e) {
     // [FIX] Ignore touches on interactive elements like badges or buttons
     // This allows clicking on stats/settings without triggering the timer
     // Also ensuring e exists and checking target only for non-keyboard events to prevent errors or blocks
-    if (e && e.type !== 'keydown' && e.target && (e.target.closest('.avg-badge') || e.target.closest('button') || e.target.closest('.tools-dropdown'))) return;
+    if (e && e.type !== 'keydown' && e.target && (e.target.closest('.avg-badge') || e.target.closest('button') || e.target.closest('.tools-dropdown') || e.target.closest('.history-filters') || e.target.closest('select'))) return;
 
     if (isBtConnected && !isInspectionMode) return; 
     
@@ -1261,9 +1584,9 @@ function renderSessionList() {
     document.getElementById('sessionCountLabel').innerText = `${eventSessions.length}/10`;
     listContainer.innerHTML = eventSessions.map(s => {
         if (editingSessionId === s.id) {
-            return `<div class="flex items-center gap-2"><input type="text" id="editSessionInput" value="${s.name}" class="flex-1 bg-white dark:bg-slate-800 border border-blue-400 rounded-xl px-3 py-2.5 text-xs font-bold outline-none dark:text-white" autofocus onkeydown="if(event.key==='Enter') saveSessionName(${s.id})" onblur="saveSessionName(${s.id})"><button onclick="saveSessionName(${s.id})" class="p-2 text-blue-600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></div>`;
+            return `<div class="flex items-center gap-2"><input type="text" id="editSessionInput" value="${escapeHtml(s.name)}" class="flex-1 bg-white dark:bg-slate-800 border border-blue-400 rounded-xl px-3 py-2.5 text-xs font-bold outline-none dark:text-white" autofocus onkeydown="if(event.key==='Enter') saveSessionName(${s.id})" onblur="saveSessionName(${s.id})"><button onclick="saveSessionName(${s.id})" class="p-2 text-blue-600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></button></div>`;
         }
-        return `<div class="flex items-center gap-2 group"><div class="flex-1 flex items-center gap-2 p-1 rounded-xl border ${s.isActive ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400' : 'bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-400'} hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"><button onclick="switchSession(${s.id})" class="flex-1 text-left p-2.5 text-xs font-bold truncate">${s.name}</button><button onclick="editSessionName(${s.id})" class="p-2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-blue-500 transition-all"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></div>${eventSessions.length > 1 ? `<button onclick="deleteSession(${s.id})" class="p-2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>` : ''}</div>`;
+        return `<div class="flex items-center gap-2 group"><div class="flex-1 flex items-center gap-2 p-1 rounded-xl border ${s.isActive ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400' : 'bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-400'} hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"><button onclick="switchSession(${s.id})" class="flex-1 text-left p-2.5 text-xs font-bold truncate">${escapeHtml(s.name)}</button><button onclick="editSessionName(${s.id})" class="p-2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-blue-500 transition-all"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></div>${eventSessions.length > 1 ? `<button onclick="deleteSession(${s.id})" class="p-2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg></button>` : ''}</div>`;
     }).join('');
     if (editingSessionId) document.getElementById('editSessionInput').focus();
     document.getElementById('sessionCreateForm').classList.toggle('hidden', eventSessions.length >= 10);
@@ -1275,11 +1598,11 @@ window.saveSessionName = (id) => { const input = document.getElementById('editSe
 window.createNewSession = () => { const nameInput = document.getElementById('newSessionName'); const name = nameInput.value.trim() || `Session ${sessions[currentEvent].length + 1}`; if (sessions[currentEvent].length >= 10) return; sessions[currentEvent].forEach(s => s.isActive = false); sessions[currentEvent].push({ id: Date.now(), name: name, isActive: true }); nameInput.value = ""; renderSessionList(); updateUI(); saveData(); timerEl.innerText = (0).toFixed(precision); resetPenalty(); };
 window.switchSession = (id) => { sessions[currentEvent].forEach(s => s.isActive = (s.id === id)); renderSessionList(); updateUI(); saveData(); timerEl.innerText = (0).toFixed(precision); resetPenalty(); closeSessionModal(); };
 window.deleteSession = (id) => { const eventSessions = sessions[currentEvent]; if (!eventSessions || eventSessions.length <= 1) return; const targetIdx = eventSessions.findIndex(s => s.id === id); if (targetIdx === -1) return; const wasActive = eventSessions[targetIdx].isActive; sessions[currentEvent] = eventSessions.filter(s => s.id !== id); solves = solves.filter(s => !(s.event === currentEvent && s.sessionId === id)); if (wasActive && sessions[currentEvent].length > 0) sessions[currentEvent][0].isActive = true; renderSessionList(); updateUI(); saveData(); };
-window.openAvgShare = (type) => { const sid = getCurrentSessionId(); const count = (type === 'primary') ? (isAo5Mode ? 5 : 3) : 12; const filtered = solves.filter(s => s.event === currentEvent && s.sessionId === sid); if (filtered.length < count) return; const list = filtered.slice(0, count); const avgValue = calculateAvg(filtered, count, (type === 'primary' && !isAo5Mode)); const dateStr = list[0].date || new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, ""); document.getElementById('shareDate').innerText = `Date : ${dateStr}.`; document.getElementById('shareLabel').innerText = (type === 'primary' && !isAo5Mode) ? `Mean of 3 :` : `Average of ${count} :`; document.getElementById('shareAvg').innerText = avgValue; const listContainer = document.getElementById('shareList'); listContainer.innerHTML = list.map((s, idx) => `<div class="flex flex-col p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700"><div class="flex items-center gap-3"><span class="text-[10px] font-bold text-slate-400 w-4">${count - idx}.</span><span class="font-bold text-slate-800 dark:text-slate-200 text-sm min-w-[50px]">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span><span class="text-[10px] text-slate-400 font-medium italic truncate flex-grow">${s.scramble}</span></div></div>`).reverse().join(''); document.getElementById('avgShareOverlay').classList.add('active'); };
-window.openSingleShare = () => { const s = solves.find(x => x.id === selectedSolveId); if (!s) return; closeModal(); const dateStr = s.date || new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, ""); document.getElementById('shareDate').innerText = `Date : ${dateStr}.`; document.getElementById('shareLabel').innerText = `Single :`; document.getElementById('shareAvg').innerText = s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time) + (s.penalty==='+2'?'+':''); const listContainer = document.getElementById('shareList'); listContainer.innerHTML = `<div class="flex flex-col p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700"><div class="flex items-center gap-3"><span class="text-[10px] font-bold text-slate-400 w-4">1.</span><span class="font-bold text-slate-800 dark:text-slate-200 text-sm min-w-[50px]">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span><span class="text-[10px] text-slate-400 font-medium italic truncate flex-grow">${s.scramble}</span></div></div>`; document.getElementById('avgShareOverlay').classList.add('active'); };
+window.openAvgShare = (type) => { if (currentEvent === '333mbf') return; const count = (type === 'primary') ? (isAo5Mode ? 5 : 3) : 12; const filtered = getFilteredSolves(); if (filtered.length < count) return; const list = filtered.slice(0, count); const avgValue = calculateAvg(filtered, count, (type === 'primary' && !isAo5Mode)); const dateStr = list[0].date || new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, ""); document.getElementById('shareDate').innerText = `Date : ${dateStr}.`; document.getElementById('shareLabel').innerText = (type === 'primary' && !isAo5Mode) ? `Mean of 3 :` : `Average of ${count} :`; document.getElementById('shareAvg').innerText = avgValue; const listContainer = document.getElementById('shareList'); listContainer.innerHTML = list.map((s, idx) => `<div class="flex flex-col p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700"><div class="flex items-center gap-3"><span class="text-[10px] font-bold text-slate-400 w-4">${count - idx}.</span><span class="font-bold text-slate-800 dark:text-slate-200 text-sm min-w-[50px]">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span><span class="text-[10px] text-slate-400 font-medium italic truncate flex-grow">${escapeHtml(s.scramble)}</span></div></div>`).reverse().join(''); document.getElementById('avgShareOverlay').classList.add('active'); };
+window.openSingleShare = () => { const s = solves.find(x => x.id === selectedSolveId); if (!s || s.event === '333mbf') return; closeModal(); const dateStr = s.date || new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, ""); document.getElementById('shareDate').innerText = `Date : ${dateStr}.`; document.getElementById('shareLabel').innerText = `Single :`; document.getElementById('shareAvg').innerText = s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time) + (s.penalty==='+2'?'+':''); const listContainer = document.getElementById('shareList'); listContainer.innerHTML = `<div class="flex flex-col p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700"><div class="flex items-center gap-3"><span class="text-[10px] font-bold text-slate-400 w-4">1.</span><span class="font-bold text-slate-800 dark:text-slate-200 text-sm min-w-[50px]">${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}</span><span class="text-[10px] text-slate-400 font-medium italic truncate flex-grow">${escapeHtml(s.scramble)}</span></div></div>`; document.getElementById('avgShareOverlay').classList.add('active'); };
 window.closeAvgShare = () => document.getElementById('avgShareOverlay').classList.remove('active');
-window.copyShareText = () => { const date = document.getElementById('shareDate').innerText; const avgLabel = document.getElementById('shareLabel').innerText; const avgVal = document.getElementById('shareAvg').innerText; const isSingle = avgLabel.includes('Single'); let text = `[CubeTimer]\n\n${date}\n\n${avgLabel} ${avgVal}\n\n`; if (isSingle) { const s = solves.find(x => x.id === selectedSolveId); if (s) text += `1. ${avgVal}   ${s.scramble}\n`; } else { const count = avgLabel.includes('5') ? 5 : (avgLabel.includes('3') ? 3 : 12); const sid = getCurrentSessionId(); const filtered = solves.filter(s => s.event === currentEvent && s.sessionId === sid).slice(0, count); filtered.reverse().forEach((s, i) => { text += `${i+1}. ${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}   ${s.scramble}\n`; }); } const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select(); try { document.execCommand('copy'); const btn = document.querySelector('[onclick="copyShareText()"]'); const original = btn.innerHTML; btn.innerHTML = "Copied!"; btn.classList.add('bg-green-600'); setTimeout(() => { btn.innerHTML = original; btn.classList.remove('bg-green-600'); }, 2000); } catch (err) { console.error('Copy failed', err); } document.body.removeChild(textArea); };
-window.addEventListener('keydown', e => { if(editingSessionId || document.activeElement.tagName === 'INPUT') { if(e.code === 'Enter' && document.activeElement === manualInput) {} else { return; } } if(e.code==='Space' && !e.repeat) { e.preventDefault(); handleStart(e); } if(isManualMode && e.code==='Enter') { let v = parseFloat(manualInput.value); if(v>0) { solves.unshift({ id:Date.now(), time:v*1000, scramble:currentScramble, event:currentEvent, sessionId: getCurrentSessionId(), penalty:null, date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, "") }); manualInput.value=""; updateUI(); generateScramble(); saveData(); } } });
+window.copyShareText = () => { const date = document.getElementById('shareDate').innerText; const avgLabel = document.getElementById('shareLabel').innerText; const avgVal = document.getElementById('shareAvg').innerText; const isSingle = avgLabel.includes('Single'); let text = `[CubeTimer]\n\n${date}\n\n${avgLabel} ${avgVal}\n\n`; if (isSingle) { const s = solves.find(x => x.id === selectedSolveId); if (s) text += `1. ${avgVal}   ${s.scramble}\n`; } else { const count = avgLabel.includes('5') ? 5 : (avgLabel.includes('3') ? 3 : 12); const filtered = getFilteredSolves().slice(0, count); filtered.reverse().forEach((s, i) => { text += `${i+1}. ${s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time)}${s.penalty==='+2'?'+':''}   ${s.scramble}\n`; }); } const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select(); try { document.execCommand('copy'); const btn = document.querySelector('[onclick="copyShareText()"]'); const original = btn.innerHTML; btn.innerHTML = "Copied!"; btn.classList.add('bg-green-600'); setTimeout(() => { btn.innerHTML = original; btn.classList.remove('bg-green-600'); }, 2000); } catch (err) { console.error('Copy failed', err); } document.body.removeChild(textArea); };
+window.addEventListener('keydown', e => { if(editingSessionId || document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') { if(e.code === 'Enter' && document.activeElement === manualInput) {} else { return; } } if(e.code==='Space' && !e.repeat) { e.preventDefault(); handleStart(e); } if(isManualMode && e.code==='Enter') { let v = parseFloat(manualInput.value); if(v>0) { const now = Date.now(); solves.unshift({ id:now, time:v*1000, scramble:currentScramble, event:currentEvent, sessionId: getCurrentSessionId(), penalty:null, date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\.$/, ""), timestamp: now }); manualInput.value=""; updateUI(); generateScramble(); saveData(); } } });
 window.addEventListener('keyup', e => { if(e.code==='Space' && !editingSessionId) handleEnd(e); });
 const interactiveArea = document.getElementById('timerInteractiveArea');
 interactiveArea.addEventListener('touchstart', handleStart, { passive: false });
@@ -1298,12 +1621,28 @@ window.openSettings = () => {
 
 window.closeSettings = () => { document.getElementById('settingsModal').classList.add('scale-95','opacity-0'); setTimeout(()=>document.getElementById('settingsOverlay').classList.remove('active'), 200); saveData(); };
 window.handleOutsideSettingsClick = (e) => { if(e.target === document.getElementById('settingsOverlay')) closeSettings(); };
-window.showSolveDetails = (id) => { let s = solves.find(x=>x.id===id); if(!s) return; selectedSolveId = id; document.getElementById('modalTime').innerText = s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time); document.getElementById('modalEvent').innerText = s.event; document.getElementById('modalScramble').innerText = s.scramble; document.getElementById('modalOverlay').classList.add('active'); };
+window.showSolveDetails = (id) => { let s = solves.find(x=>x.id===id); if(!s) return; selectedSolveId = id; if (s.event === '333mbf') { const solved = s.mbfSolved ?? '-'; const attempted = s.mbfAttempted ?? '-'; const timeLabel = s.mbfTimeMs ? formatTime(s.mbfTimeMs) : '-'; document.getElementById('modalTime').innerText = `MBF ${solved}/${attempted}`; document.getElementById('modalEvent').innerText = s.event; document.getElementById('modalScramble').innerText = `Time: ${timeLabel}`; } else { document.getElementById('modalTime').innerText = s.penalty==='DNF'?'DNF':formatTime(s.penalty==='+2'?s.time+2000:s.time); document.getElementById('modalEvent').innerText = s.event; document.getElementById('modalScramble').innerText = s.scramble; } document.getElementById('modalOverlay').classList.add('active'); };
 window.closeModal = () => document.getElementById('modalOverlay').classList.remove('active');
 window.useThisScramble = () => { let s=solves.find(x=>x.id===selectedSolveId); if(s){currentScramble=s.scramble; scrambleEl.innerText=currentScramble; closeModal();} };
 precisionToggle.onchange = e => { precision = e.target.checked?3:2; updateUI(); timerEl.innerText=(0).toFixed(precision); saveData(); };
 avgModeToggle.onchange = e => { isAo5Mode = e.target.checked; updateUI(); saveData(); };
 manualEntryToggle.onchange = e => { isManualMode = e.target.checked; timerEl.classList.toggle('hidden', isManualMode); manualInput.classList.toggle('hidden', !isManualMode); statusHint.innerText = isManualMode ? "TYPE TIME & ENTER" : "HOLD TO READY"; };
+if (historyPeriodFilter) {
+    historyPeriodFilter.addEventListener('change', (e) => {
+        historyFilterPeriod = e.target.value;
+        displayedSolvesCount = SOLVES_BATCH_SIZE;
+        updateUI();
+        saveData();
+    });
+}
+if (historyCountFilter) {
+    historyCountFilter.addEventListener('change', (e) => {
+        historyFilterCount = e.target.value;
+        displayedSolvesCount = SOLVES_BATCH_SIZE;
+        updateUI();
+        saveData();
+    });
+}
 document.getElementById('clearHistoryBtn').onclick = () => { const sid = getCurrentSessionId(); const msg = `Clear all history for this session?`; const customConfirm = document.createElement('div'); customConfirm.id = 'clearConfirmModal'; customConfirm.innerHTML = `<div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"><div class="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-xs shadow-2xl"><p class="text-sm font-bold text-slate-700 dark:text-white mb-6 text-center">${msg}</p><div class="flex gap-2"><button id="cancelClear" class="flex-1 py-3 text-slate-400 font-bold text-sm">Cancel</button><button id="confirmClear" class="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-sm">Clear All</button></div></div></div>`; document.body.appendChild(customConfirm); document.getElementById('cancelClear').onclick = () => { document.body.removeChild(document.getElementById('clearConfirmModal')); }; document.getElementById('confirmClear').onclick = () => { solves = solves.filter(s => !(s.event === currentEvent && s.sessionId === sid)); updateUI(); saveData(); document.body.removeChild(document.getElementById('clearConfirmModal')); timerEl.innerText = (0).toFixed(precision); resetPenalty(); }; };
 
 loadData(); 

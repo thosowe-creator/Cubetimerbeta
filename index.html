@@ -26,6 +26,7 @@
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script type="module" src="https://unpkg.com/cubing@0.57.1/dist/cubing/twisty-player.js"></script>
     <style>
         /* Mobile Bottom Nav Safe Area */
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
@@ -115,6 +116,15 @@
                 <button onclick="copyMbfText()" class="flex-1 py-3.5 bg-slate-800 dark:bg-slate-700 text-white font-bold rounded-xl text-sm">Copy All</button>
                 <button onclick="closeMbfScrambleModal()" class="flex-1 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-sm">Close</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Scramble History Modal -->
+    <div id="scrambleHistoryOverlay" class="modal-overlay" onclick="closeScrambleHistoryModal()">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl p-6" onclick="event.stopPropagation()">
+            <h3 class="font-bold text-slate-700 dark:text-white text-lg mb-4">Scramble History</h3>
+            <div id="scrambleHistoryList" class="space-y-3 max-h-[60vh] overflow-y-auto custom-scroll pr-2"></div>
+            <button onclick="closeScrambleHistoryModal()" class="w-full mt-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-sm">Close</button>
         </div>
     </div>
 
@@ -278,7 +288,10 @@
 
                 <!-- Scramble -->
                 <div class="text-center w-full">
-                    <h2 class="text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-[10px] font-bold mb-3">Scramble</h2>
+                    <div class="flex items-center justify-center gap-2 mb-3">
+                        <h2 class="text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-[10px] font-bold">Scramble</h2>
+                        <button onclick="openScrambleHistoryModal()" class="text-[10px] font-bold text-blue-500 hover:underline">History</button>
+                    </div>
                     <div id="scrambleBox" class="scramble-box p-6 md:p-8 min-h-[120px] flex flex-col items-center justify-center border border-slate-100 dark:border-slate-800 rounded-3xl transition-colors">
                         <div id="scramble" class="text-base md:text-xl font-bold text-slate-600 dark:text-slate-300 whitespace-pre-wrap text-center max-w-5xl leading-relaxed">Generating...</div>
                         <div id="mbfInputArea" class="hidden flex flex-col items-center gap-4 w-full">
@@ -286,6 +299,15 @@
                             <div class="flex gap-2 w-full max-w-xs">
                                 <input type="number" id="mbfCubeInput" min="2" max="100" placeholder="e.g. 10" class="flex-1 bg-slate-50 dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-lg font-bold text-center outline-none focus:border-blue-400 transition-all">
                                 <button onclick="generateMbfScrambles()" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold active:scale-95 transition-all shadow-md">Go</button>
+                            </div>
+                            <div id="mbfResultForm" class="w-full max-w-md mt-4">
+                                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Record Result</p>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <input type="number" id="mbfSolvedInput" min="0" placeholder="Solved" class="bg-white dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none focus:border-blue-400 transition-all">
+                                    <input type="number" id="mbfAttemptedInput" min="0" placeholder="Attempted" class="bg-white dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none focus:border-blue-400 transition-all">
+                                    <input type="text" id="mbfTimeInput" placeholder="Time (mm:ss)" class="bg-white dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none focus:border-blue-400 transition-all">
+                                </div>
+                                <button onclick="saveMbfResult()" class="w-full mt-3 py-2.5 bg-slate-800 dark:bg-slate-700 text-white font-bold rounded-xl text-sm active:scale-95 transition-all">Save Result</button>
                             </div>
                         </div>
                     </div>
@@ -335,6 +357,27 @@
                 </div>
                 <button id="clearHistoryBtn" class="text-[11px] font-bold text-slate-300 hover:text-red-400 transition-colors uppercase tracking-wider">Clear</button>
             </div>
+
+            <div class="history-filters p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col gap-3">
+                <div class="flex items-center justify-between gap-3">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Period</label>
+                    <select id="historyPeriodFilter" class="filter-select">
+                        <option value="all">All</option>
+                        <option value="today">Today</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                    </select>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recent</label>
+                    <select id="historyCountFilter" class="filter-select">
+                        <option value="all">All</option>
+                        <option value="10">10 solves</option>
+                        <option value="25">25 solves</option>
+                        <option value="50">50 solves</option>
+                    </select>
+                </div>
+            </div>
             
             <div id="historyList" class="flex-grow overflow-y-auto p-4 space-y-2 custom-scroll bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800"></div>
             
@@ -371,6 +414,7 @@
                     <div id="toolContainer" class="flex items-center justify-center min-h-[190px]">
                         <div id="visualizerWrapper" class="w-full flex justify-center items-center">
                             <canvas id="cubeVisualizer" width="260" height="190"></canvas>
+                            <twisty-player id="twistyPlayer" class="twisty-player hidden"></twisty-player>
                             <div id="noVisualizerMsg" class="hidden text-[11px] text-slate-300 italic">Visualizer for standard cubes only</div>
                         </div>
                         <div id="graphWrapper" class="w-full h-[190px] hidden flex flex-col p-2">
@@ -401,6 +445,8 @@
             <span class="text-[10px] font-bold mt-1">Settings</span>
         </button>
     </nav>
+
+    <div id="toastContainer" class="toast-container"></div>
 
     <!-- 외부 스크립트 연결 -->
     <script src="script.js"></script>
