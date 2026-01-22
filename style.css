@@ -1,10 +1,100 @@
-body { font-family: 'Quicksand', sans-serif; touch-action: manipulation; }
-.timer-display { font-family: 'JetBrains+Mono', monospace; font-size: clamp(4rem, 18vw, 10rem); font-weight: 700; line-height: 1; transition: color 0.1s; }
-.manual-input { font-family: 'JetBrains+Mono', monospace; font-size: clamp(2.5rem, 12vw, 6rem); background: transparent; border: none; outline: none; text-align: center; width: 100%; }
+html, body { height: 100%; }
+
+/* Safe-area utility (used in mobile bottom nav) */
+.pb-safe{ padding-bottom: env(safe-area-inset-bottom); }
+
+html { height: 100dvh; overflow: hidden; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-weight: 400;
+  touch-action: manipulation;
+  height: 100dvh;
+  overflow: hidden; /* prevent page scroll (spacebar / layout growth) */
+}
+
+.timer-display {
+  /* Match the averages font for consistency */
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  /* Base size (viewport-budget block near the end may override) */
+  /* Use vmin so the timer never exceeds available height on wide screens */
+  font-size: clamp(4.4rem, 17.5vmin, 14rem);
+  font-weight: 400; /* thinner */
+  line-height: 1;
+  transition: color 0.1s;
+}
+
+/* Hide the Ready/Hint pill entirely (keep timing logic intact) */
+#statusHint { display: none !important; }
+
+.manual-input {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: clamp(2.8rem, 12vw, 6.2rem);
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  outline: none;
+  text-align: center;
+  width: 100%;
+}
+
+/* Layout/scroll policy
+   - Body does not scroll
+   - Main content does not scroll (prevents timer clipping)
+   - Only inner panels (history list, modals) may scroll
+   - Padding-bottom accounts for fixed mobile bottom nav + safe-area
+*/
+.main-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* 4rem = mobile bottom nav height */
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom) + 1rem);
+}
+@media (min-width: 768px) {
+  .main-container {
+    padding-bottom: 1rem;
+  }
+}
+
 .modal-overlay { background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); display: none; position: fixed; inset: 0; z-index: 50; align-items: center; justify-content: center; padding: 1rem; }
 .modal-overlay.active { display: flex; }
-.history-panel { border-radius: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
-@media (min-width: 768px) { .history-panel { height: calc(100vh - 120px); } }
+
+/* Settings modal: allow internal scroll on mobile */
+#settingsModal {
+  max-height: calc(100dvh - 2rem);
+  display: flex;
+  flex-direction: column;
+}
+#settingsModal .settings-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Mobile: keep scroll contained and comfortable like History */
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  /* Reserve space so the last item isn't hidden behind the sticky footer */
+  padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+}
+
+.history-panel { border-radius: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); height: 100%; }
+
+/* Smaller-height screens: compress paddings and reserved blocks so everything fits without page scroll */
+@media (max-height: 700px) {
+  .scramble-bottom-area { height: 150px; }
+  .scramble-diagram { width: 240px; height: 150px; }
+  .scramble-skeleton { width: 240px; height: 150px; }
+  #toolContainer { min-height: 150px !important; }
+  .timer-display { font-size: clamp(4.7rem, 17vw, 11rem); }
+}
+
+@media (max-height: 620px) {
+  .scramble-bottom-area { height: 120px; }
+  .scramble-diagram { width: 220px; height: 120px; }
+  .scramble-skeleton { width: 220px; height: 120px; }
+  #toolContainer { min-height: 120px !important; }
+  .timer-display { font-size: clamp(4.2rem, 16vw, 10.2rem); }
+}
 .custom-scroll::-webkit-scrollbar { width: 5px; }
 .custom-scroll::-webkit-scrollbar-track { background: transparent; }
 .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
@@ -25,7 +115,7 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px
 input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #e2e8f0; border-radius: 2px; }
 .dark input[type=range]::-webkit-slider-runnable-track { background: #475569; }
 
-.penalty-btn { flex: 1; padding: 1rem; font-size: 0.875rem; font-weight: 700; border-radius: 0.75rem; transition: all 0.2s; border: 1px solid #e2e8f0; }
+.penalty-btn { flex: 1; padding: 1rem; font-size: 0.875rem; font-weight: 700; border-radius: 0.75rem; transition: all 0.2s; border: 1px solid #e2e8f0; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .dark .penalty-btn { border-color: #334155; background-color: #1e293b; color: #94a3b8; }
 .penalty-btn.active-plus2 { background-color: #ffedd5; border-color: #fed7aa; color: #ea580c; }
 .dark .penalty-btn.active-plus2 { background-color: #7c2d12; border-color: #fdba74; color: #ffedd5; }
@@ -33,11 +123,170 @@ input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cur
 .dark .penalty-btn.active-dnf { background-color: #7f1d1d; border-color: #fca5a5; color: #fee2e2; }
 .penalty-btn.inactive { background-color: white; color: #94a3b8; }
 .dark .penalty-btn.inactive { background-color: #1e293b; color: #64748b; }
+/* Compact penalty buttons used inside History list */
+.history-pen-btn {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.70rem;
+  font-weight: 800;
+  border-radius: 0.65rem;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #64748b;
+  transition: all 0.15s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.dark .history-pen-btn {
+  border-color: #334155;
+  background: #1e293b;
+  color: #94a3b8;
+}
+.history-pen-btn.active-plus2 {
+  background: #ffedd5;
+  border-color: #fed7aa;
+  color: #ea580c;
+}
+.dark .history-pen-btn.active-plus2 {
+  background: #7c2d12;
+  border-color: #fdba74;
+  color: #ffedd5;
+}
+.history-pen-btn.active-dnf {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+.dark .history-pen-btn.active-dnf {
+  background: #7f1d1d;
+  border-color: #fca5a5;
+  color: #fee2e2;
+}
+
+/* Compact penalty buttons used inside History list */
+.history-pen-btn {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.70rem;
+  font-weight: 800;
+  border-radius: 0.65rem;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #64748b;
+  transition: all 0.15s;
+}
+.dark .history-pen-btn {
+  border-color: #334155;
+  background: #1e293b;
+  color: #94a3b8;
+}
+.history-pen-btn.active-plus2 {
+  background: #ffedd5;
+  border-color: #fed7aa;
+  color: #ea580c;
+}
+.dark .history-pen-btn.active-plus2 {
+  background: #7c2d12;
+  border-color: #fdba74;
+  color: #ffedd5;
+}
+.history-pen-btn.active-dnf {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+.dark .history-pen-btn.active-dnf {
+  background: #7f1d1d;
+  border-color: #fca5a5;
+  color: #fee2e2;
+}
+
+/* Compact penalty buttons used inside History list */
+.history-pen-btn {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.70rem;
+  font-weight: 800;
+  border-radius: 0.65rem;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #64748b;
+  transition: all 0.15s;
+}
+.dark .history-pen-btn {
+  border-color: #334155;
+  background: #1e293b;
+  color: #94a3b8;
+}
+.history-pen-btn.active-plus2 {
+  background: #ffedd5;
+  border-color: #fed7aa;
+  color: #ea580c;
+}
+.dark .history-pen-btn.active-plus2 {
+  background: #7c2d12;
+  border-color: #fdba74;
+  color: #ffedd5;
+}
+.history-pen-btn.active-dnf {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+.dark .history-pen-btn.active-dnf {
+  background: #7f1d1d;
+  border-color: #fca5a5;
+  color: #fee2e2;
+}
+.history-pen-btn:active { transform: scale(0.96); }
+
+/* Compact penalty buttons used inside History list */
+.history-pen-btn {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.70rem;
+  font-weight: 800;
+  border-radius: 0.65rem;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #64748b;
+  transition: all 0.15s;
+}
+.dark .history-pen-btn {
+  border-color: #334155;
+  background: #1e293b;
+  color: #94a3b8;
+}
+.history-pen-btn.active-plus2 {
+  background: #ffedd5;
+  border-color: #fed7aa;
+  color: #ea580c;
+}
+.dark .history-pen-btn.active-plus2 {
+  background: #7c2d12;
+  border-color: #fdba74;
+  color: #ffedd5;
+}
+.history-pen-btn.active-dnf {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+.dark .history-pen-btn.active-dnf {
+  background: #7f1d1d;
+  border-color: #fca5a5;
+  color: #fee2e2;
+}
+
 
 .bt-pulse { animation: pulse 2s infinite; }
 @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-#timerInteractiveArea { touch-action: none; -webkit-tap-highlight-color: transparent; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-.avg-badge { padding: 1rem 1.5rem; border-radius: 1rem; background: white; border: 1px solid #f1f5f9; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); min-width: 140px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; }
+/*
+  Mobile usability:
+  - Allow vertical scroll gestures to pass through the timer area (pan-y)
+  - Prevent double-tap zoom / highlight without killing scroll
+*/
+#timerInteractiveArea { touch-action: pan-y; -webkit-tap-highlight-color: transparent; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+
+/* While timing, we intentionally prevent page scroll to avoid accidental movement */
+body.no-scroll { overflow: hidden; }
+.avg-badge { padding: 1rem 1.5rem; border-radius: 1rem; background: white; border: 1px solid #f1f5f9; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); min-width: 140px; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .dark .avg-badge { background-color: #1e293b; border-color: #334155; }
 .avg-badge:active { transform: scale(0.95); }
 .tools-dropdown { position: absolute; bottom: 100%; right: 0; margin-bottom: 8px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); display: none; flex-direction: column; overflow: hidden; z-index: 60; width: 160px; }
@@ -57,3 +306,300 @@ input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cur
 .text-hold { color: #ef4444 !important; }
 .text-running { color: #2563eb !important; }
 .dark .text-running { color: #60a5fa !important; } /* Lighter blue for dark mode */
+
+
+/* cubing.js scramble diagram */
+.scramble-diagram{
+  width:260px;
+  height:190px;
+  display:block;
+  overflow:hidden;
+  border-radius:16px;
+}
+
+/* Scramble Loading UI */
+.spinner{
+  width:14px;
+  height:14px;
+  border-radius:9999px;
+  border:2px solid rgba(148,163,184,0.35);
+  border-top-color: rgba(59,130,246,0.9);
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin{ to { transform: rotate(360deg); } }
+
+.scramble-skeleton{
+  width: 260px;
+  height: 190px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, rgba(226,232,240,0.9), rgba(241,245,249,0.9), rgba(226,232,240,0.9));
+  background-size: 200% 100%;
+  animation: skeleton 1.2s ease-in-out infinite;
+}
+.dark .scramble-skeleton{
+  background: linear-gradient(90deg, rgba(51,65,85,0.8), rgba(30,41,59,0.8), rgba(51,65,85,0.8));
+  background-size: 200% 100%;
+}
+@keyframes skeleton{ 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+@media (min-width: 768px){
+  .scramble-diagram{
+    width:320px;
+    height:220px;
+  }
+  .scramble-skeleton{
+    width:320px;
+    height:220px;
+  }
+}
+
+/* Reserve space below scramble text to prevent timer shift */
+.scramble-bottom-area{
+  height:190px;
+}
+@media (min-width: 768px){
+  .scramble-bottom-area{
+    height:220px;
+  }
+}
+
+/* Height-based responsive compression (keeps UI in view without page scroll) */
+@media (max-height: 760px) {
+  .scramble-bottom-area { height: 150px; }
+  #toolContainer { min-height: 150px !important; }
+  .timer-display { font-size: clamp(4.2rem, 16vw, 10.5rem); }
+}
+
+@media (max-height: 680px) {
+  .scramble-bottom-area { height: 120px; }
+  #toolContainer { min-height: 120px !important; }
+  .scramble-diagram, .scramble-skeleton { width: 220px; height: 160px; }
+  .timer-display { font-size: clamp(3.8rem, 15vw, 9.5rem); }
+}
+
+@media (max-height: 610px) {
+  .scramble-bottom-area { height: 90px; }
+  #toolContainer { min-height: 90px !important; }
+  .scramble-diagram, .scramble-skeleton { width: 200px; height: 140px; }
+  .timer-display { font-size: clamp(3.4rem, 14vw, 8.5rem); }
+}
+
+/* === Responsive shrink hotfix (viewport-height driven) === */
+/* Allow flex children to actually shrink instead of forcing overflow */
+#timerSection, #scrambleBox, #toolContainer, .scramble-bottom-area {
+  min-height: 0;
+}
+
+:root {
+  --toolMinH: 190px;
+  --scrambleBottomH: 12px;
+  --scramblePad: 1.25rem;
+}
+
+
+/* Scramble text sizing: JS may override inline for long scrambles */
+.scramble-text{
+  width: 100%;
+  max-width: 100%;
+  font-size: clamp(1.05rem, 1.0vw + 0.75rem, 2.05rem);
+  line-height: 1.35;
+  overflow: hidden;
+  text-wrap: balance;
+  word-break: break-word;
+}
+@media (min-width: 768px){
+  .scramble-text{
+    font-size: clamp(1.35rem, 0.9vw + 0.9rem, 2.35rem);
+    line-height: 1.35;
+  }
+}
+@media (min-width: 1280px){
+  .scramble-text{
+    font-size: clamp(1.5rem, 0.8vw + 1.0rem, 2.6rem);
+  }
+}
+
+/* Mobile: keep some side padding (not zero) but make it wider than before */
+@media (max-width: 480px){
+  :root{
+    --toolMinH: 90px;
+    --scramblePad: 0.95rem;
+  }
+}
+
+/* Apply budgets */
+#toolContainer { min-height: var(--toolMinH) !important; }
+.scramble-bottom-area{ height: var(--scrambleBottomH) !important; transition: height 160ms ease; }
+.scramble-box { padding: var(--scramblePad) !important; }
+
+.timer-display {
+  /* Keep the timer big, but never allow it to overflow vertically */
+  font-size: clamp(4.4rem, 17.5vmin, 14rem);
+}
+
+/* Make the diagram responsive so the top block can actually shrink on short screens */
+.scramble-diagram,
+.scramble-skeleton{
+  width: clamp(200px, 55vw, 320px);
+  height: clamp(120px, 24vh, 220px);
+}
+
+@media (max-height: 720px) {
+  :root {
+  --toolMinH: 190px;
+  --scrambleBottomH: 12px;
+  --scramblePad: 1.25rem;
+}
+  .timer-display { font-size: clamp(3.8rem, 15vmin, 11.5rem); }
+}
+
+@media (max-height: 640px) {
+  :root {
+  --toolMinH: 190px;
+  --scrambleBottomH: 12px;
+  --scramblePad: 1.25rem;
+}
+  /* Hide diagram area earlier on very short screens */
+  #scrambleDiagramSkeleton { display: none !important; }
+  #scrambleDiagram { display: none !important; }
+  .timer-display { font-size: clamp(3.4rem, 14vmin, 10.5rem); }
+}
+
+@media (max-height: 560px) {
+  :root {
+  --toolMinH: 190px;
+  --scrambleBottomH: 12px;
+  --scramblePad: 1.25rem;
+}
+  .timer-display { font-size: clamp(3.0rem, 13vmin, 9.5rem); }
+}
+
+/* Narrow windows: compress vertical spacing so the whole UI fits without scrolling */
+@media (max-width: 1024px) {
+  :root { --scramblePad: 1.1rem; }
+}
+
+@media (max-width: 768px) {
+  :root {
+  --toolMinH: 190px;
+  --scrambleBottomH: 12px;
+  --scramblePad: 1.25rem;
+}
+}
+
+@media (max-width: 480px) {
+  :root {
+  --toolMinH: 190px;
+  --scrambleBottomH: 12px;
+  --scramblePad: 1.25rem;
+}
+}
+
+/* Compact penalty buttons used inside History list */
+.history-pen-btn {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.70rem;
+  font-weight: 800;
+  border-radius: 0.65rem;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #64748b;
+  transition: all 0.15s;
+}
+.dark .history-pen-btn {
+  border-color: #334155;
+  background: #1e293b;
+  color: #94a3b8;
+}
+.history-pen-btn.active-plus2 {
+  background: #ffedd5;
+  border-color: #fed7aa;
+  color: #ea580c;
+}
+.dark .history-pen-btn.active-plus2 {
+  background: #7c2d12;
+  border-color: #fdba74;
+  color: #ffedd5;
+}
+.history-pen-btn.active-dnf {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+.dark .history-pen-btn.active-dnf {
+  background: #7f1d1d;
+  border-color: #fca5a5;
+  color: #fee2e2;
+}
+
+
+.timer-center-shift {
+  /* Visually center the timer cluster on mobile */
+  transform: translateY(-12vh);
+}
+
+@media (max-height: 700px) {
+  .timer-center-shift { transform: translateY(-8vh); }
+}
+
+@media (min-width: 768px) {
+  .timer-center-shift { transform: translateY(-5vh); }
+}
+
+/* Make tap targets consistently clickable on iOS inside scroll areas */
+button, .history-pen-btn, .penalty-btn { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+/* History list (mobile/desktop): smooth scroll + reliable taps */
+#historyList { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; }
+
+
+/* Settings compact on mobile (keep scroll + sticky footer visible) */
+@media (max-width: 480px){
+  #settingsModal{ padding: 0.75rem !important; }
+  #settingsScroll{ padding-right: 0.25rem !important; }
+  #settingsScroll{ --_itemGap: 0.55rem; }
+  #settingsScroll{ margin-top: 0.25rem; }
+  #settingsScroll{ }
+  #settingsScroll.space-y-4 > :not([hidden]) ~ :not([hidden]){ margin-top: var(--_itemGap) !important; }
+  #settingsModal .settings-scroll .rounded-2xl{ padding: 0.65rem !important; }
+  #settingsModal .settings-scroll p.text-xs{ font-size: 0.72rem !important; }
+  #settingsModal .settings-scroll span.text-\[9px\]{ font-size: 0.55rem !important; }
+}
+
+
+/* --- Mobile layout fixes (2026-01) --- */
+/* Settings modal: keep around ~2/3 of viewport height on mobile */
+@media (max-width: 767px) {
+  #settingsModal { max-height: 66dvh !important; }
+}
+@media (max-width: 480px) {
+  #settingsModal { max-height: 62dvh !important; }
+}
+@media (max-width: 767px) and (max-height: 700px) {
+  #settingsModal { max-height: 60dvh !important; }
+}
+@media (max-width: 767px) and (max-height: 620px) {
+  #settingsModal { max-height: 56dvh !important; }
+}
+
+/* Mobile fixed bottom nav: reserve space so content doesn't sit under it */
+@media (max-width: 767px) {
+  #mainContent{ padding-bottom: calc(4rem + env(safe-area-inset-bottom)); }
+}
+
+/* Mobile Stats(History) tab: cap the visible History list to ~2 items (actual item height) and scroll the rest */
+@media (max-width: 767px) {
+  /* Keep the panel within the main flex layout (no page growth) */
+  #historySection{ height: 100%; min-height: 0; }
+
+  /* On mobile, show only ~2 items worth of height, then scroll */
+  #historyList{
+    flex: 0 0 auto;
+    max-height: var(--mobHistoryListMaxH, 240px);
+    overflow-y: auto;
+    padding-bottom: 0;
+  }
+}
+#historyList{ padding-bottom: 0; }
+}
+
