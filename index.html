@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko"
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Cube Timer</title>
+    <link rel="icon" href="favicon.ico">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -24,15 +25,24 @@
             }
         }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <style>
         /* Mobile Bottom Nav Safe Area */
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
         .mb-safe { margin-bottom: env(safe-area-inset-bottom); }
     </style>
+
+    <!-- cubing.js: scrambles + scramble diagrams -->
+    <script type="module">
+      import { randomScrambleForEvent } from 'https://cdn.cubing.net/v0/js/cubing/scramble';
+      // Expose for non-module script.js
+      window.__randomScrambleForEvent = randomScrambleForEvent;
+    </script>
+    <script src="https://cdn.cubing.net/v0/js/scramble-display" type="module"></script>
+
 </head>
-<body class="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 overflow-hidden transition-colors duration-200">
+<body class="h-full flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors duration-200">
 
     <!-- Header (PC & Mobile shared, layout adjusts) -->
     <header class="w-full h-14 md:h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-6 flex items-center justify-between z-40 shrink-0 transition-colors duration-200">
@@ -117,6 +127,36 @@
         </div>
     </div>
 
+    <!-- Multi-Blind Result Modal (WCA style input) -->
+    <div id="mbfResultOverlay" class="modal-overlay" onclick="closeMbfResultModal()">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl p-6" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-slate-700 dark:text-white text-lg">MBF Result</h3>
+                <span class="text-[10px] font-black bg-blue-600 text-white px-2 py-1 rounded-md uppercase">333mbf</span>
+            </div>
+            <p class="text-[11px] text-slate-400 font-bold mb-5">WCA 형식(Attempted / Solved / Time)을 입력해 주세요.</p>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                    <label class="text-xs font-bold text-slate-600 dark:text-slate-300" for="mbfAttemptedInput">Attempted</label>
+                    <input id="mbfAttemptedInput" type="number" min="1" max="999" inputmode="numeric" class="w-28 bg-slate-50 dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none focus:border-blue-400 transition-all" placeholder="e.g. 10">
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                    <label class="text-xs font-bold text-slate-600 dark:text-slate-300" for="mbfSolvedInput">Solved</label>
+                    <input id="mbfSolvedInput" type="number" min="0" max="999" inputmode="numeric" class="w-28 bg-slate-50 dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none focus:border-blue-400 transition-all" placeholder="e.g. 8">
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                    <label class="text-xs font-bold text-slate-600 dark:text-slate-300" for="mbfTimeInput">Time</label>
+                    <input id="mbfTimeInput" type="text" inputmode="numeric" class="w-28 bg-slate-50 dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-bold text-center outline-none focus:border-blue-400 transition-all" placeholder="mm:ss">
+                </div>
+            </div>
+            <div id="mbfResultError" class="hidden mt-4 text-[11px] font-bold text-red-500"></div>
+            <div class="flex gap-2 mt-6">
+                <button onclick="saveMbfResult()" class="flex-1 py-3.5 bg-blue-600 text-white font-bold rounded-xl text-sm shadow-lg active:scale-95 transition-all">Save</button>
+                <button onclick="closeMbfResultModal()" class="flex-1 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-sm">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Detailed Stats Modal -->
     <div id="statsOverlay" class="modal-overlay" onclick="closeStatsModal()">
         <div class="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl p-6" onclick="event.stopPropagation()">
@@ -128,13 +168,21 @@
 
     <!-- Settings Modal -->
     <div id="settingsOverlay" class="modal-overlay" onclick="handleOutsideSettingsClick(event)">
-        <div class="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl p-6 transform transition-all scale-95 opacity-0 duration-200" id="settingsModal" onclick="event.stopPropagation()">
-            <h3 class="font-bold text-slate-700 dark:text-white text-lg mb-6">Settings</h3>
-            <div class="space-y-4">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl p-4 sm:p-6 transform transition-all scale-95 opacity-0 duration-200" id="settingsModal" onclick="event.stopPropagation()">
+            <h3 class="font-bold text-slate-700 dark:text-white text-lg mb-3">Settings</h3>
+            <div id="settingsScroll" class="settings-scroll space-y-4 custom-scroll pr-1">
                 <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl">
                     <div><p class="text-xs font-bold text-slate-600 dark:text-slate-300">Dark Mode</p></div>
                     <label class="switch"><input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode(this)"><span class="slider"></span></label>
                 </div>
+                <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl">
+                    <div><p class="text-xs font-bold text-slate-600 dark:text-slate-300" id="langLabel">Language</p></div>
+                    <select id="langSelect" onchange="setLanguage(this.value)" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-200 outline-none">
+                        <option value="ko">한국어</option>
+                        <option value="en">English</option>
+                    </select>
+                </div>
+
                 <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl">
                     <div><p class="text-xs font-bold text-slate-600 dark:text-slate-300">Prevent Sleep (Wake Lock)</p></div>
                     <label class="switch"><input type="checkbox" id="wakeLockToggle" onchange="toggleWakeLock(this)"><span class="slider"></span></label>
@@ -170,8 +218,21 @@
                     <button onclick="exportData()" class="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl">Backup</button>
                     <button onclick="triggerImport()" class="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl">Restore</button>
                 </div>
+
+                <!-- About: Release Notes / Developer Log -->
+                <div class="pt-2">
+                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300 dark:text-slate-600 mb-2">About</p>
+                    <div class="flex gap-2">
+                        <button onclick="openUpdateLog(false)" class="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl">Update Log</button>
+                        <button onclick="openKnownIssues()" class="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl">Developer Log</button>
+                    </div>
+                </div>
             </div>
-            <button onclick="closeSettings()" class="w-full mt-8 py-3 bg-slate-800 dark:bg-slate-700 text-white font-bold rounded-xl shadow-lg text-sm">Save & Close</button>
+
+            <!-- Sticky footer so Save & Close is always reachable on mobile -->
+            <div class="settings-footer sticky bottom-0 bg-white dark:bg-slate-900 pt-3 pb-2 border-t border-slate-100 dark:border-slate-800">
+                <button onclick="closeSettings()" class="w-full py-3 bg-slate-800 dark:bg-slate-700 text-white font-bold rounded-xl shadow-lg text-sm">Save & Close</button>
+            </div>
         </div>
     </div>
 
@@ -234,15 +295,63 @@
         </div>
     </div>
 
+    <!-- Developer Log Modal -->
+    <div id="knownIssuesOverlay" class="modal-overlay" onclick="closeKnownIssues()">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm shadow-2xl p-6" onclick="event.stopPropagation()">
+            <div class="flex items-center gap-2 mb-6">
+                <div class="p-2 bg-purple-100 dark:bg-purple-900 rounded-xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-purple-600 dark:text-purple-400"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+                </div>
+                <h3 class="font-bold text-slate-700 dark:text-white text-lg">Developer Log</h3>
+            </div>
+            <div class="mb-6">
+                <ul id="knownIssuesList" class="space-y-3 text-sm font-medium text-slate-600 dark:text-slate-300"></ul>
+            </div>
+            <button onclick="closeKnownIssues()" class="w-full py-3.5 bg-slate-800 dark:bg-slate-700 text-white font-bold rounded-xl text-sm shadow-lg hover:bg-slate-700 transition-colors">Close</button>
+        </div>
+    </div>
+
     <!-- Main Content -->
     <!-- Added id='mainContent' and pb-20 for mobile bottom nav space -->
-    <main id="mainContent" class="main-container flex flex-col md:flex-row p-4 gap-6 flex-grow overflow-y-auto md:overflow-hidden pb-24 md:pb-4">
+    <main id="mainContent" class="main-container flex flex-col md:flex-row p-4 gap-6 flex-grow min-h-0">
         
         <!-- Timer View Section (Shown by default on Mobile/Desktop) -->
-        <div id="timerSection" class="flex-grow flex flex-col items-center justify-between h-full order-1 w-full">
+        <div id="timerSection" class="flex-grow flex flex-col items-center justify-start gap-6 order-1 w-full min-h-0">
             <div class="w-full space-y-6">
+                <!-- Event Select (Scroll) -->
+                <div class="flex flex-col items-center gap-3"> 
+                    <h2 class="text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-[10px] font-bold">Event</h2>
+                    <div class="w-full max-w-md">
+                        <select id="eventSelect" onchange="changeEvent(this.value)" class="w-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-400 transition-all" aria-label="Event selector">
+                            <optgroup label="NxN">
+                                <option value="333">3x3</option>
+                                <option value="222">2x2</option>
+                                <option value="444">4x4</option>
+                                <option value="555">5x5</option>
+                                <option value="666">6x6</option>
+                                <option value="777">7x7</option>
+                                <option value="333oh">3x3 OH</option>
+                            </optgroup>
+                            <optgroup label="Etc">
+                                <option value="clock">Clock</option>
+                                <option value="minx">Megaminx</option>
+                                <option value="pyra">Pyraminx</option>
+                                <option value="skewb">Skewb</option>
+                                <option value="sq1">Square-1</option>
+                            </optgroup>
+                            <optgroup label="Blind">
+                                <option value="333bf">3BLD</option>
+                                <option value="444bf">4BLD</option>
+                                <option value="555bf">5BLD</option>
+                                <option value="333mbf">Multi-BLD</option>
+                            </optgroup>
+                        </select>
+                        <!-- (UX) 스크롤 선택 기능은 유지하되 안내 문구는 제거 -->
+                    </div>
+                </div>
+
                 <!-- Category Select -->
-                <div class="flex flex-col items-center gap-4">
+                <div id="legacyCategorySelect" class="hidden flex flex-col items-center gap-4">
                     <div class="flex gap-1 p-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-full border border-slate-200 dark:border-slate-700">
                         <button onclick="switchCategory('standard')" id="cat-standard" class="category-btn active px-6 py-2.5 text-xs font-bold rounded-full transition-colors">NxN</button>
                         <button onclick="switchCategory('nonstandard')" id="cat-nonstandard" class="category-btn px-6 py-2.5 text-xs font-bold rounded-full transition-colors text-slate-500 dark:text-slate-400">Etc.</button>
@@ -278,8 +387,22 @@
                 <!-- Scramble -->
                 <div class="text-center w-full">
                     <h2 class="text-slate-300 dark:text-slate-600 uppercase tracking-[0.2em] text-[10px] font-bold mb-3">Scramble</h2>
-                    <div id="scrambleBox" class="scramble-box p-6 md:p-8 min-h-[120px] flex flex-col items-center justify-center border border-slate-100 dark:border-slate-800 rounded-3xl transition-colors">
-                        <div id="scramble" class="text-base md:text-xl font-bold text-slate-600 dark:text-slate-300 whitespace-pre-wrap text-center max-w-5xl leading-relaxed">Generating...</div>
+                    <div id="scrambleBox" class="border border-slate-100 dark:border-slate-800 flex flex-col items-center justify-center md:p-8 p-6 relative rounded-3xl scramble-box transition-colors">
+                        <!-- Layout-stable scramble area: reserve space to prevent timer shifting -->
+                        <div class="h-5 flex items-center justify-center">
+                            <div id="scrambleLoadingRow" class="hidden items-center gap-2">
+                                <span class="spinner"></span>
+                                <span id="scrambleLoadingText" class="text-[11px] font-bold text-slate-400">Loading scramble…</span>
+                            </div>
+                        </div>
+
+                        <div id="scramble" class="scramble-text font-bold text-slate-600 dark:text-slate-300 whitespace-pre-wrap text-center leading-relaxed">Generating...</div>
+
+                        <div class="scramble-bottom-area relative w-full flex items-center justify-center">
+                            <div id="scrambleDiagramSkeleton" class="hidden scramble-skeleton"></div>
+                            <button id="scrambleRetryBtn" onclick="retryScramble()" class="hidden px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold active:scale-95 transition-all">Failed. Tap to retry.</button>
+                        </div>
+
                         <div id="mbfInputArea" class="hidden flex flex-col items-center gap-4 w-full">
                             <p class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Enter number of cubes</p>
                             <div class="flex gap-2 w-full max-w-xs">
@@ -292,7 +415,7 @@
             </div>
 
             <!-- Timer Area -->
-            <div id="timerContainer" class="flex flex-col items-center justify-center flex-grow w-full select-none">
+            <div id="timerContainer" class="flex flex-col items-center justify-center flex-grow w-full select-none timer-center-shift">
                 <div id="timerInteractiveArea" class="rounded-3xl transition-colors hover:bg-slate-100/30 dark:hover:bg-slate-800/30 w-full h-full flex flex-col justify-center items-center">
                     <div id="timerDisplayContainer" class="w-full flex justify-center">
                         <div id="timer" class="timer-display text-slate-800 dark:text-slate-100 transition-all duration-100">0.00</div>
@@ -311,16 +434,9 @@
                     </div>
                 </div>
                 
-                <div id="statusHint" class="bg-white dark:bg-slate-800 px-6 py-2 rounded-full text-slate-400 text-xs font-bold tracking-widest shadow-sm border border-slate-100 dark:border-slate-700 uppercase transition-all duration-200">Hold to Ready</div>
+                <div id="statusHint" class="bg-white dark:bg-slate-800 px-6 py-2 rounded-full text-slate-400 text-xs font-bold tracking-widest shadow-sm border border-slate-100 dark:border-slate-700 uppercase transition-all duration-200"></div>
             </div>
-
-            <!-- Buttons: Penalty/Delete -->
-            <div class="w-full max-w-xl flex justify-center gap-4 mt-2 mb-6">
-                <button id="plus2Btn" class="penalty-btn inactive" onclick="togglePenalty('+2')">+2</button>
-                <button id="dnfBtn" class="penalty-btn inactive" onclick="togglePenalty('DNF')">DNF</button>
             </div>
-        </div>
-
         <!-- History View Section (Hidden on Mobile by default, Visible on Desktop) -->
         <div id="historySection" class="hidden md:flex w-full md:w-[360px] history-panel flex-col order-2 overflow-hidden shrink-0 bg-white dark:bg-slate-900 border border-transparent dark:border-slate-800 h-full">
             <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shrink-0 rounded-t-3xl">
@@ -367,9 +483,10 @@
                         </div>
                     </div>
 
-                    <div id="toolContainer" class="flex items-center justify-center min-h-[190px]">
+                    <div id="toolContainer" class="flex items-center justify-center">
                         <div id="visualizerWrapper" class="w-full flex justify-center items-center">
-                            <canvas id="cubeVisualizer" width="260" height="190"></canvas>
+                            <scramble-display id="scrambleDiagram" class="scramble-diagram" visualization="2D"></scramble-display>
+                            <canvas id="cubeVisualizer" class="hidden" width="260" height="190"></canvas>
                             <div id="noVisualizerMsg" class="hidden text-[11px] text-slate-300 italic">Visualizer for standard cubes only</div>
                         </div>
                         <div id="graphWrapper" class="w-full h-[190px] hidden flex flex-col p-2">
@@ -404,5 +521,4 @@
     <!-- 외부 스크립트 연결 -->
     <script src="script.js"></script>
 </body>
-</html>
 </html>
