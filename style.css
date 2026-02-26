@@ -602,38 +602,3 @@ button, .history-pen-btn, .penalty-btn { touch-action: manipulation; -webkit-tap
 }
 #historyList{ padding-bottom: 0; }
 }
-
-
-/* Maintenance notice popup */
-.maintenance-notice-modal {
-  max-width: 640px;
-  max-height: calc(100dvh - 2rem);
-  display: flex;
-  flex-direction: column;
-}
-.maintenance-notice-content {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-}
-@media (max-width: 767px) {
-  .maintenance-notice-modal {
-    max-width: min(90vw, 390px);
-    max-height: min(68dvh, 520px);
-    border-radius: 1rem;
-  }
-  .maintenance-notice-modal > div:first-child {
-    padding: 0.75rem 0.9rem;
-  }
-  .maintenance-notice-content {
-    padding: 0.75rem 0.9rem;
-    font-size: 0.77rem;
-    line-height: 1.38;
-  }
-  .maintenance-notice-content section {
-    gap: 0.25rem;
-  }
-  .maintenance-notice-modal > div:last-child {
-    padding: 0.65rem 0.9rem;
-  }
-}
