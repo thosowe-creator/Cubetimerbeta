@@ -2310,3 +2310,4 @@ applyLanguageToUI();
 changeEvent(currentEvent);
 // Check for updates on load
 checkUpdateLog();
+
