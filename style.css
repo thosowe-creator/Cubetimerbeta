@@ -618,12 +618,22 @@ button, .history-pen-btn, .penalty-btn { touch-action: manipulation; -webkit-tap
 }
 @media (max-width: 767px) {
   .maintenance-notice-modal {
-    max-width: min(92vw, 420px);
-    max-height: min(78dvh, 640px);
-    border-radius: 1.25rem;
+    max-width: min(90vw, 390px);
+    max-height: min(68dvh, 520px);
+    border-radius: 1rem;
+  }
+  .maintenance-notice-modal > div:first-child {
+    padding: 0.75rem 0.9rem;
   }
   .maintenance-notice-content {
-    font-size: 0.82rem;
-    line-height: 1.45;
+    padding: 0.75rem 0.9rem;
+    font-size: 0.77rem;
+    line-height: 1.38;
+  }
+  .maintenance-notice-content section {
+    gap: 0.25rem;
+  }
+  .maintenance-notice-modal > div:last-child {
+    padding: 0.65rem 0.9rem;
   }
 }
