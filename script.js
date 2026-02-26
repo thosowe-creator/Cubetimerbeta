@@ -1,3 +1,4 @@
+
 let solves = [];
 let sessions = {};
 let currentEvent = '333';
@@ -2304,32 +2305,8 @@ document.getElementById('clearHistoryBtn').onclick = () => {
     resetPenalty();
   };
 };
-const MAINT_NOTICE_STORAGE_KEY = 'maintenanceNoticeDismissed_v3_20260301';
-
-window.openMaintenanceNotice = () => {
-    const overlay = document.getElementById('maintenanceNoticeOverlay');
-    if (!overlay) return;
-    overlay.classList.add('active');
-};
-
-window.closeMaintenanceNotice = (e) => {
-    if (e && e.target && e.target.id !== 'maintenanceNoticeOverlay') return;
-    const checkbox = document.getElementById('maintenanceNoticeDoNotShow');
-    if (checkbox?.checked) {
-        localStorage.setItem(MAINT_NOTICE_STORAGE_KEY, '1');
-    }
-    const overlay = document.getElementById('maintenanceNoticeOverlay');
-    if (overlay) overlay.classList.remove('active');
-};
-
-function maybeOpenMaintenanceNotice() {
-    const dismissed = localStorage.getItem(MAINT_NOTICE_STORAGE_KEY) === '1';
-    if (!dismissed) window.openMaintenanceNotice();
-}
-
 loadData();
 applyLanguageToUI();
 changeEvent(currentEvent);
 // Check for updates on load
 checkUpdateLog();
-maybeOpenMaintenanceNotice();
